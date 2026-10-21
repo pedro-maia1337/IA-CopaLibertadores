@@ -1,0 +1,78 @@
+ALGORITMOS DE INDUÇÃO DE ÁRVORES
+ Cristiane Neri Nobre
+Árvore de Decisão
+• Quando uma árvore de decisão é usada para tarefas
+ de classificação, é mais comumente referida como
+ uma árvore de classificação.
+• Quando é usado para tarefas de regressão, é chamado
+ de árvore de regressão
+Árvore de Decisão
+• Árvore de decisão é popular porque é simples e fácil
+ de ser interpretada
+• Tipicamente, a complexidade da árvore é medida
+ pelas seguintes métricas: número total de nodos,
+ número total de folhas, profundidade da árvore e
+ número de atributos usados
+ • A navalha de Occam*: mais simples é melhor
+• A árvore de decisão pode ser interpretada como uma
+ disjunção de conjunções de regras, em que cada
+ caminho da árvore é uma regra.
+ https://pt.wikipedia.org/wiki/Navalha_de_Occam
+Árvore de Decisão
+• Lista de perguntas  respostas “sim” ou “não”
+• Hierarquicamente arranjadas
+• Levam a uma decisão
+• Estrutura da árvore determinada por meio de
+ aprendizado
+Árvore de Decisão - Histórico
+1966: Algoritmo CLS-Early para construção de árvore de
+decisão
+1979: ID3 - baseado na teoria da informação
+ Árvore de classificação
+ Autor: Ross Quinlan
+1984: CART - Árvore de classificação e regressão
+ Autor: Brieman et al
+1993: C4.5 - ID3 melhorado
+ Árvore de classificação
+ Autor: Ross Quinlan
+Árvore de Decisão - Histórico
+Ross Quinlan Leo Brieman
+1943 - atual 1928 - 2005
+ Árvore de Decisão - Motivação
+Como as pessoas tomam decisões?
+ • Consideram uma variedade de fatores
+ • Seguem um caminho lógico a partir da análise
+ realizada
+ Árvore de Decisão - Estrutura
+Uma árvore de decisão consiste de:
+▪ Nós
+ Testes para variáveis
+▪ Ramos
+ Resultados dos testes
+▪ Folhas
+ Classificação
+ Árvore de Decisão
+• Qualquer função booleana pode ser escrita como
+ uma árvore de decisão.
+Árvore de Decisão – Interpretação
+Geométrica
+Árvore de Decisão – Interpretação
+Geométrica
+Alguns livros de Árvore de Decisão
+Referências Bibliográficas
+ ◼ RUSSELL, Stuart J.; NORVIG, Peter. Inteligência artificial. Rio de Janeiro: Elsevier, c2013. xxi,
+ 988 p. ISBN 9788535237016. Capítulo 18
+ ◼ LORENA et al. INTELIGÊNCIA artificial uma abordagem de aprendizado de máquina. Rio de
+ Janeiro LTC 2011, ISBN 978-85-216-2146-1.
+ ◼ QUINLAN, J. Ross. C4.5: Programs for Machine Learning. Morgan Kaufmann, 1993.
+ ◼ TOM, M. Mitchell. Machine Learning. McGraw-Hill, 1997.
+ Sites:
+ https://www.analyticsvidhya.com/blog/2016/04/tree-based-algorithms-complete-tutorial-scratch-in-python/
+ https://github.com/handcraftsman/TreeBasedMachineLearningAlgorithms
+ http://www.cse.unsw.edu.au/~billw/cs9414/notes/ml/06prop/id3/id3.html
+ http://www.aispace.org/dTree/
+ http://www2.dbd.puc-rio.br/pergamum/tesesabertas/0210488_04_cap_03.pdf
+ rfaces.googlecode.com/files/7346C805d01.pdf
+ http://sites.ffclrp.usp.br/ccp/%28SEM%208%29/MATDID/EACBD/Apostila%20DW%20e%20DM%20PUC%20
+ RJ.pdf
+ http://professor.ufabc.edu.br/~ronaldo.prati/MachineLearning/AM-I-Arvores-Decisao.pdf

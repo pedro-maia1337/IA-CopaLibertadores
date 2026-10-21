@@ -1,0 +1,74 @@
+ETAPAS DE PRÉ-PROCESSAMENTO
+ DADOS INCONSISTENTES E REDUNDANTES
+ Cristiane Neri Nobre
+Dados inconsistentes
+ o Dados inconsistentes são aqueles que possuem valores
+ conflitantes em seus atributos
+ Em que situação isso ocorre?
+ o Dados inconsistentes são muitas vezes produzidos no processo de
+ integração de dados (ex: diferentes conjuntos de dados podem usar
+ escalas diferentes para uma mesma medida (metros e centímetros)
+ o Duas instâncias iguais com classificações diferentes
+Dados redundantes
+ o Dados redundantes podem se referir tanto a instâncias quanto
+ a atributos
+ o Uma instância é redundante quando ela é muito semelhante a
+ uma outra instância do mesmo conjunto de dados
+Sexo Esco Fetária Renda Area GostaA GostaB
+ F 1 2 4 5 S N
+ F 1 2 4 7 S S
+Dados redundantes
+ o No caso extremo, instâncias da mesma base de dados podem ser
+ literalmente iguais
+Dados redundantes
+ o Um atributo é redundante quando seu valor para todas as instâncias
+ pode ser deduzido a partir do valor de um ou mais atributos
+Data de Nascimento Idade
+ 2010 10
+ 2014 6
+ 2007 13
+NumVendas Valor por Venda VendaTotal
+ 100 6 600
+ 30 4 120
+ 20 80 1600
+Dados redundantes
+ o No caso extremo, quando o atributo possui o mesmo valor que um
+ outro atributo para cada uma das instâncias da base de dados
+ # Int = Número de internações
+ # Int = Número de vezes que o paciente esteve no hospital
+Dados redundantes
+o A redundância de um atributo está relacionada à sua correlação
+ com um ou mais atributos do conjunto de dados.
+o Dois ou mais atributos estão correlacionados quando apresentam
+ um perfil de variação semelhante para as diferentes instâncias.
+Aluno Horas de Estudo Nota Corr>0.90
+1 20 9,5
+2 12 2,5
+3 14 3,6
+4 15 6,7
+5 18 5,2
+6 9 1
+Dados redundantes
+ o Se a correlação ocorrer entre um atributo de entrada e um
+ atributo de classificação, este atributo de entrada terá uma
+ grande influência na predição do valor do atributo rótulo
+Quebrou regra do tipo Quebrou regra?
+ A Sim
+ B Sim
+ Não
+ Não quebrou regra Sim
+ C Não
+ Não quebrou regra
+Dados redundantes
+ Qual a causa da redundância?
+ o Problemas na coleta, na entrada, no armazenamento, na
+ integração ou na transmissão de dados
+ O fato é que bases reais têm muita redundância e
+ inconsistência!
+Dados redundantes e inconsistentes
+ Investigue eliminação de redundância e inconsistência no código (está no
+ CANVAS)
+ Lendo_e_tratando_arquivo_IRIS.ipynb
+ AD_RF_Titanic_processamento
+ Referências:
+• Capítulo 3 do livro

@@ -1,0 +1,750 @@
+A Study of the Behavior of Several Methods for Balancing
+ Machine Learning Training Data
+ Gustavo E. A. P. A. Batista
+ Ronaldo C. Prati
+ Maria Carolina Monard
+ Instituto de Cieˆ ncias Matema´ ticas e de Computac¸a˜ o
+ Caixa Postal 668, 13560-970
+ Sa˜ o Carlos - SP, Brazil
+ {gbatista, prati, mcmonard}@icmc.usp.br
+ABSTRACT for learning are balanced. However, this is not always the
+ case in real world data where one class might be represented
+There are several aspects that might inﬂuence the perfor- by a large number of examples, while the other is represented
+mance achieved by existing learning systems. It has been by only a few. This is known as the class imbalance problem
+reported that one of these aspects is related to class imbal- and is often reported as an obstacle to the induction of good
+ance in which examples in training data belonging to one classiﬁers by Machine Learning (ML) algorithms. Generally,
+class heavily outnumber the examples in the other class. In the problem of imbalanced data sets occurs when one class
+this situation, which is found in real world data describing represents a circumscribed concept, while the other class
+an infrequent but important event, the learning system may represents the counterpart of that concept, so that examples
+have diﬃculties to learn the concept related to the minority from the counterpart class heavily outnumber examples from
+class. In this work we perform a broad experimental evalu- the positive class. This sort of data is found, for example,
+ation involving ten methods, three of them proposed by the in medical record databases regarding a rare disease, were
+authors, to deal with the class imbalance problem in thirteen there is a large number of patients who do not have that
+UCI data sets. Our experiments provide evidence that class disease; continuous fault-monitoring tasks where non-faulty
+imbalance does not systematically hinder the performance examples heavily outnumber faulty examples, and others.
+of learning systems. In fact, the problem seems to be related
+to learning with too few minority class examples in the pres- In recent years, there have been several attempts at dealing
+ence of other complicating factors, such as class overlapping. with the class imbalance problem in the ﬁeld of Data Mining
+Two of our proposed methods deal with these conditions and Knowledge Discovery in Databases, to which ML is a
+directly, allying a known over-sampling method with data substantial contributor. Related papers have been published
+cleaning methods in order to produce better-deﬁned class in the ML literature aiming to overcome this problem. The
+clusters. Our comparative experiments show that, in gen- ML community seems to agree on the hypothesis that the
+eral, over-sampling methods provide more accurate results imbalance between classes is the major obstacle in induc-
+than under-sampling methods considering the area under ing classiﬁers in imbalanced domains. However, it has also
+the ROC curve (AUC). This result seems to contradict re- been observed that in some domains, for instance the Sick
+sults previously published in the literature. Two of our pro- data set [3], standard ML algorithms are capable of induc-
+posed methods, Smote + Tomek and Smote + ENN, pre- ing good classiﬁers, even using highly imbalanced training
+sented very good results for data sets with a small number of sets. This shows that class imbalance is not the only prob-
+positive examples. Moreover, Random over-sampling, a very lem responsible for the decrease in performance of learning
+simple over-sampling method, is very competitive to more algorithms.
+complex over-sampling methods. Since the over-sampling
+methods provided very good performance results, we also In [18] we developed a systematic study aiming to ques-
+measured the syntactic complexity of the decision trees in- tion whether class imbalances hinder classiﬁer induction or
+duced from over-sampled data. Our results show that these whether these deﬁciencies might be explained in other ways.
+trees are usually more complex then the ones induced from Our study was developed on a series of artiﬁcial data sets in
+original data. Random over-sampling usually produced the order to fully control all the variables we wanted to analyze.
+smallest increase in the mean number of induced rules and The results of our experiments, using a discrimination-based
+Smote + ENN the smallest increase in the mean number of inductive scheme, suggested that the problem is not solely
+conditions per rule, when compared among the investigated caused by class imbalance, but is also related to the degree
+over-sampling methods. of data overlapping among the classes.
+1. INTRODUCTION The results obtained in this previous work motivated the
+ proposition of two new methods to deal with the problem of
+Most learning systems usually assume that training sets used learning in the presence of class imbalance. These methods
+ ally a known over-sampling method, namely Smote [5], with
+ two data cleaning methods: Tomek links [22] and Wilson’s
+ Edited Nearest Neighbor Rule [24]. The main motivation
+ behind these methods is not only to balance the training
+Sigkdd Explorations. Volume 6, Issue 1 - Page 20
+data, but also to remove noisy examples lying on the wrong Decision trees also experience a similar problem. In the pres-
+side of the decision border. The removal of noisy examples ence of class overlapping, decision trees may need to create
+might aid in ﬁnding better-deﬁned class clusters, therefore, many tests to distinguish the minority class cases from ma-
+allowing the creation of simpler models with better general- jority class cases. Pruning the decision tree might not nec-
+ization capabilities. essarily alleviate the problem. This is due to the fact that
+In addition, in this work we perform a broad experimental pruning removes some branches considered too specialized,
+evaluation involving ten methods, three of them proposed labelling new leaf nodes with the dominant class on this
+by the authors, to deal with the class imbalance problem in node. Thus, there is a high probability that the majority
+thirteen UCI data sets. We concluded that over-sampling class will also be the dominant class of those leaf nodes.
+methods are able to aid in the induction of classiﬁers that
+are more accurate than those induced from under-sampled 3. ON EVALUATING CLASSIFIERS IN IM-
+data sets. This result seems to contradict results previously
+published in the literature. Two of our proposed methods BALANCED DOMAINS
+performed well in practice, in particular for data sets with
+a small number of positive examples. It is worth noting The most straightforward way to evaluate the performance
+that Random over-sampling, a very simple over-sampling
+method, is very competitive to more complex over-sampling of classiﬁers is based on the confusion matrix analysis. Ta-
+methods.
+The remainder of the paper is organized as follows: Section 2 ble 1 illustrates a confusion matrix for a two class problem
+discusses why learning from imbalanced data sets might be
+a diﬃcult task. Section 3 describes the drawbacks of using having positive and negative class values. From such a
+accuracy (or error rate) to measure the performance of clas-
+siﬁers and discusses alternative metrics. Section 4 presents matrix it is possible to extract a number of widely used
+the methods employed in the experimental evaluation, in-
+cluding the three methods proposed by the authors. Sec- metrics for measuring the performance of learning systems,
+tion 5 discusses the methodology used in the experiments,
+as well as the results achieved. Finally, Section 6 presents such as Error Rate, deﬁned as Err = F P +F N and
+the conclusions and outlines future research. T P +F N +F P +T N
+2. WHY LEARNING FROM IMBALANCED Accuracy, deﬁned as Acc = T P +T N = 1 − Err.
+ DATA SETS MIGHT BE DIFFICULT T P +F N +F P +T N
+Learning from imbalanced data sets is often reported as Table 1: Confusion matrix for a two-class problem.
+being a diﬃcult task. In order to better understand this
+problem, imagine the situation illustrated in Figure 1. In Positive Prediction Negative Prediction
+Fig. 1(a) there is a large imbalance between the majority Positive Class True Positive (T P ) False Negative (F N )
+class (-) and the minority class (+), and the data set presents Negative Class False Positive (F P ) True Negative (T N )
+some degree of class overlapping. A much more comfortable
+situation for learning is represented in Fig. 1(b), where the However, when the prior class probabilities are very diﬀer-
+classes are balanced with well-deﬁned clusters. ent, the use of such measures might lead to misleading con-
+In a situation similar to the one illustrated in Fig. 1(a), clusions. Error rate and accuracy are particularly suspicious
+spare cases from the minority class may confuse a classiﬁer performance measures when studying the eﬀect of class dis-
+like k-Nearest Neighbor (k-NN). For instance, 1-NN may in- tribution on learning since they are strongly biased to favor
+correctly classify many cases from the minority class because the majority class. For instance, it is straightforward to
+the nearest neighbors of these cases are examples belonging create a classiﬁer having an accuracy of 99% (or an error
+to the majority class. In a situation where the imbalance is rate of 1%) in a domain where the majority class proportion
+very high, the probability of the nearest neighbor of a mi- corresponds to 99% of the examples, by simply forecasting
+nority class case is a case of the majority class is likely to every new example as belonging to the majority class.
+be high, and the minority class error rate will tend to have Another fact against the use of accuracy (or error rate) is
+high values, which is unacceptable. that these metrics consider diﬀerent classiﬁcation errors to
+ be equally important. However, highly imbalanced problems
+Figure 1: Many negative cases against some spare positive generally have highly non-uniform error costs that favor the
+cases (a) balanced data set with well-deﬁned clusters (b). minority class, which is often the class of primary interest.
+ For instance, a sick patient diagnosed as healthy might be
+ a fatal error while a healthy patient diagnosed as sick is
+ considered a much less serious error since this mistake can
+ be corrected in future exams.
+ Finally, another point that should be considered when study-
+ ing the eﬀect of class distribution on learning systems is that
+ the class distribution may change. Consider the confusion
+ matrix shown in Table 1. Note that the class distribution
+ (the proportion of positive to negative examples) is the re-
+ lationship between the ﬁrst and second lines. Any perfor-
+ mance metric that uses values from both lines will be inher-
+ ently sensitive to class skews. Metrics such as accuracy and
+ error rate use values from both lines of the confusion matrix.
+ As class distribution changes, these measures will change as
+ well, even if the fundamental classiﬁer performance does not.
+ All things considered, it would be more interesting if we use
+ a performance metric that disassociates the errors (or hits)
+ that occurred in each class. From Table 1 it is possible to
+ derive four performance metrics that directly measure the
+ classiﬁcation performance on positive and negative classes
+ independently:
+Sigkdd Explorations. Volume 6, Issue 1 - Page 21
+False negative rate F Nrate = FN is the percentage an associated label. This label deﬁnes the class the example
+ T P +F N belongs to. Each example Ei ∈ E is a tuple Ei = (xi, yi)
+ in which xi is a vector of feature (or attribute) values of
+of positive cases misclassiﬁed as belonging to the nega- the example Ei, and yi is its class value. The objective of a
+ supervised learning algorithm is to induce a general mapping
+tive class; of vectors x to values y. Thus, the learning system aims to
+ construct a model y = f (x), of an unknown function f , also
+False positive rate F Prate = FP is the percentage known as concept function, that enables one to predict the y
+ F P +T N values for previously unseen examples. In practice, learning
+ systems are able to induce a function h that approximates
+of negative cases misclassiﬁed as belonging to the posi- f , i.e., h(x) ≈ f (x). In this case, h is called the hypothesis
+ of the concept function f .
+tive class;
+ In Table 2 a data set with N examples and M attributes is
+True negative rate T Nrate = TN is the percentage presented. Columns (A1, . . . AM ) represent the attributes
+ F P +T N and lines (E1, . . . EN ) represent the examples. For instance,
+ line i in Table 2 refers to the ith example and the entry xij
+of negative cases correctly classiﬁed as belonging to the refers to the value of the jth attribute, Aj, of example i. For
+ classiﬁcation problems, the class-attribute Y is a qualitative
+negative class; attribute that may assume a set of NCl discrete values C =
+ {C1, C2, . . . CNCl }.
+True positive rate T Prate = TP is the percentage
+ T P +F N
+of positive cases correctly classiﬁed as belonging to the
+positive class.
+These four performance measures have the advantage of be- Table 2: Data set in the attribute-value form.
+ing independent of class costs and prior probabilities. The A1 A2 · · · AM Y
+aim of a classiﬁer is to minimize the false positive and neg-
+ative rates or, similarly, to maximize the true negative and E1 x11 x12 · · · x1M y1
+positive rates. Unfortunately, for most real world applica-
+tions there is a tradeoﬀ between F Nrate and F Prate, and E2 x21 x22 · · · x2M y2
+similarly between T Nrate and T Prate. ROC (Receiver Op-
+erating Characteristic) graphs [19] can be used to analyze ... ... ... . . . ... ...
+the relationship between F Nrate and F Prate (or T Nrate and
+T Prate) for a classiﬁer. EN xN1 xN2 . . . xNM yN
+Some classiﬁers, such as the Na¨ıve Bayes classiﬁer or some
+Neural Networks, yield a score that represents the degree to As stated earlier, in this work we consider two-class prob-
+which an example is a member of a class. Such ranking can lems where C1 = + represents the circumscribed concept
+be used to produce several classiﬁers, by varying the thresh- class and C2 = − represents the counterpart of that con-
+old of an example pertaining to a class. Each threshold cept. Furthermore, the examples from the negative class
+value produces a diﬀerent point in the ROC space. These outnumber the examples from the positive class.
+points are linked by tracing straight lines through two con-
+secutive points to produce a ROC curve. For decision trees, 4.2 Our Implementation of the k-NN Algo-
+we could use the class distributions at each leaf as a score or, rithm
+as proposed in [9], by ordering the leaves by their positive
+class accuracy and producing several trees by re-labelling the Several research papers use the Euclidean distance as a dis-
+leaves, one at a time, from all forecasting negative class to tance metric for the k-NN algorithm. However, this distance
+all forecasting positive class in the positive accuracy order. function might not be appropriate when the domain presents
+ qualitative attributes. For those domains, the distance for
+A ROC graph characterizes the performance of a binary qualitative attributes is usually calculated using the over-
+classiﬁcation model across all possible trade-oﬀs between the lap function, in which the value 0 (if two examples have the
+classiﬁer sensitivity (T Prate) and false alarm (F Prate). ROC same value for a given attribute) or the value 1 (if these val-
+graphs are consistent for a given problem, even if the distri- ues diﬀer) are assigned. Our implementation of the k-NN
+bution of positive and negative examples is highly skewed. algorithm uses the Heterogeneous Value Diﬀerence Metric
+A ROC analysis also allows the performance of multiple (HVDM) distance function [25]. This distance function uses
+classiﬁcation functions to be visualized and compared si- the Euclidean distance for quantitative attributes and the
+multaneously. The area under the ROC curve (AUC) rep- VDM distance [21] for qualitative attributes. The VDM
+resents the expected performance as a single scalar. The metric provides a more appropriate distance function for
+AUC has a known statistical meaning: it is equivalent to qualitative attributes if compared with the overlap metric,
+the Wilconxon test of ranks, and is equivalent to several since the VDM metric considers the classiﬁcation similarity
+other statistical measures for evaluating classiﬁcation and for each possible value of a qualitative attribute to calculate
+ranking models [10]. In this work, we use the method pro- the distances between these values.
+posed in [9] with Laplace correction for measuring the leaf Another reﬁnement to the basic k-NN algorithm is to weigh
+accuracy to produce ROC curves. We also use the AUC as the contribution of each of the k neighbors according to their
+the main method for assessing our experiments. distance to the query example Eq, giving greater weight to
+ closer neighbors. The vote of each neighbor is weighed ac-
+4. METHODS cording to the inverse square of its distance from Eq [17].
+ Given Eˆ = {Eˆ1, Eˆ2, . . . Eˆk}, the set of k nearest neighbors
+This section describes the notation used as well as our im- of Eq, according to the distance function d the ﬁnal classiﬁ-
+plementation of the k-NN algorithm, since this algorithm cation is given by Equation 1.
+plays an important role in the behavior of the methods con-
+sidered. Finally, an explanation of each balancing method
+is given.
+4.1 Notation
+In supervised learning, the inducer is fed with a data set
+E = {E1, E2, . . . EN }, in which each example Ei ∈ E has
+Sigkdd Explorations. Volume 6, Issue 1 - Page 22
+ k 1 the examples in Eˆ to classify the examples in E. Ev-
+ ωi = d(Eq, Eˆi)2 (1) ery misclassiﬁed example from E is moved to Eˆ. It is
+h(Eq) = arg max ωiδ(c, f (Eˆi)) important to note that this procedure does not ﬁnd the
+ smallest consistent subset from E. The idea behind this
+ c∈C i=1 implementation of a consistent subset is to eliminate the
+ examples from the majority class that are distant from
+and δ(a, b) = 1 if a = b otherwise δ(a, b) = 0. the decision border, since these sorts of examples might
+ be considered less relevant for learning.
+As the balancing methods make severe use of distance com- One-sided selection One-sided selection (OSS) [14] is an
+putations, we implemented an indexing structure namely under-sampling method resulting from the application of
+M-tree [6] to speed up the execution of k-NN queries. M- Tomek links followed by the application of CNN. Tomek
+tree only considers relative distances of examples rather than links are used as an under-sampling method and removes
+their absolute positions in a multi-dimensional space, to or- noisy and borderline majority class examples. Border-
+ganize and partition the metric space. In a metric space, line examples can be considered “unsafe” since a small
+example proximity is only deﬁned by a distance function amount of noise can make them fall on the wrong side
+that satisﬁes the positivity, symmetry and triangle inequal- of the decision border. CNN aims to remove examples
+ity postulates. from the majority class that are distant from the decision
+ border. The remainder examples, i.e. “safe” majority
+4.3 Methods class examples and all minority class examples are used
+ for learning.
+In this work, we evaluate ten diﬀerent methods of under and CNN + Tomek links This is one of the methods pro-
+over-sampling to balance the class distribution on training posed in this work. It is similar to the one-sided se-
+data. Two of these methods, random over-sampling and ran- lection, but the method to ﬁnd the consistent subset
+dom under-sampling, are non-heuristic methods that were is applied before the Tomek links. Our objective is to
+initially included in this evaluation as baseline methods. verify its competitiveness with OSS. As ﬁnding Tomek
+The evaluated methods are described next. links is computationally demanding, it would be compu-
+ tationally cheaper if it was performed on a reduced data
+Random over-sampling is a non-heuristic method that set.
+ aims to balance class distribution through the random Neighborhood Cleaning Rule Neighborhood Cleaning
+ replication of minority class examples. Rule (NCL) [15] uses the Wilson’s Edited Nearest Neigh-
+ bor Rule (ENN) [24] to remove majority class examples.
+Random under-sampling is also a non-heuristic method ENN removes any example whose class label diﬀers from
+ that aims to balance class distribution through the ran- the class of at least two of its three nearest neighbors.
+ dom elimination of majority class examples. NCL modiﬁes the ENN in order to increase the data
+ cleaning. For a two-class problem the algorithm can be
+Several authors agree that random over-sampling can in- described in the following way: for each example Ei in
+crease the likelihood of occurring overﬁtting, since it makes the training set, its three nearest neighbors are found.
+exact copies of the minority class examples. In this way, a If Ei belongs to the majority class and the classiﬁcation
+symbolic classiﬁer, for instance, might construct rules that given by its three nearest neighbors contradicts the orig-
+are apparently accurate, but actually cover one replicated inal class of Ei, then Ei is removed. If Ei belongs to the
+example. On the other hand, the major drawback of ran- minority class and its three nearest neighbors misclas-
+dom under-sampling is that this method can discard poten- sify Ei, then the nearest neighbors that belong to the
+tially useful data that could be important for the induction majority class are removed.
+process. The remainder balancing methods use heuristics in Smote Synthetic Minority Over-sampling Technique (Smo-
+order to overcome the limitations of the non-heuristic meth- te) [5] is an over-sampling method. Its main idea is to
+ods. form new minority class examples by interpolating be-
+ tween several minority class examples that lie together.
+Tomek links Tomek links [22] can be deﬁned as follows: Thus, the overﬁtting problem is avoided and causes the
+ given two examples Ei and Ej belonging to diﬀerent decision boundaries for the minority class to spread fur-
+ classes, and d(Ei, Ej) is the distance between Ei and ther into the majority class space.
+ Ej. A (Ei, Ej) pair is called a Tomek link if there is Smote + Tomek links Although over-sampling minority
+ not an example El, such that d(Ei, El) < d(Ei, Ej) or class examples can balance class distributions, some other
+ d(Ej, El) < d(Ei, Ej). If two examples form a Tomek problems usually present in data sets with skewed class
+ link, then either one of these examples is noise or both distributions are not solved. Frequently, class clusters
+ examples are borderline. Tomek links can be used as an are not well deﬁned since some majority class exam-
+ under-sampling method or as a data cleaning method. ples might be invading the minority class space. The
+ As an under-sampling method, only examples belong- opposite can also be true, since interpolating minority
+ ing to the majority class are eliminated, and as a data class examples can expand the minority class clusters,
+ cleaning method, examples of both classes are removed. introducing artiﬁcial minority class examples too deeply
+ in the majority class space. Inducing a classiﬁer un-
+Condensed Nearest Neighbor Rule Hart’s Condensed der such a situation can lead to overﬁtting. In order to
+ Nearest Neighbor Rule (CNN) [11] is used to ﬁnd a con- create better-deﬁned class clusters, we propose applying
+ sistent subset of examples. A subset Eˆ ⊆ E is consis- Tomek links to the over-sampled training set as a data
+ tent with E if using a 1-nearest neighbor, Eˆ correctly
+ classiﬁes the examples in E. An algorithm to create a
+ subset Eˆ from E as an under-sampling method is the
+ following [14]: First, randomly draw one majority class
+ example and all examples from the minority class and
+ put these examples in Eˆ. Afterwards, use a 1-NN over
+Sigkdd Explorations. Volume 6, Issue 1 - Page 23
+Figure 2: Balancing a data set: original data set (a); over- we ran C4.5 over the original (imbalanced) data sets and
+sampled data set (b); Tomek links identiﬁcation (c); and calculated the AUC for each data set using 10-fold cross-
+borderline and noise examples removal (d ). validation. The results obtained in this initial experiment
+ are shown in a graph in Figure 3.
+ Figure 3: Proportion of negative/positive examples versus
+ AUC.
+ 100
+ 90
+ AUC (%) 80
+ 70
+ 60
+ 50
+ 40 5 10 15 20 25 30 35 40
+ 0
+ Proportion of negative/positive examples
+ Pima New-thyroid
+ German E-coli
+ Post-operative
+ Haberman Satimage
+ Splice-ie Flag
+ Splice-ei
+ Vehicle Glass
+ Letter-vowel Letter-a
+ Nursery
+ cleaning method. Thus, instead of removing only the Figure 3 plots the proportion of negative/positive examples
+ majority class examples that form Tomek links, exam- versus the mean AUC values for the original data sets. If
+ ples from both classes are removed. The application of class imbalances can systematically hinder the performance
+ this method is illustrated in Figure 2. First, the original of imbalanced data sets, then it would be expected that
+ data set (a) is over-sampled with Smote (b), and then AUC decreases for highly imbalanced data sets. However,
+ Tomek links are identiﬁed (c) and removed, producing in spite of a large degree of imbalance the data sets Letter-a
+ a balanced data set with well-deﬁned class clusters (d ). and Nursery obtained almost 100% AUC.
+ The Smote + Tomek links method was ﬁrst used to im-
+ prove the classiﬁcation of examples for the problem of The results obtained in the UCI data sets seem to be com-
+ annotation of proteins in Bioinformatics [1]. patible with previous work of the authors [18] conducted on
+Smote + ENN The motivation behind this method is sim- a series of experiments with artiﬁcial domains, in which we
+ ilar to Smote + Tomek links. ENN tends to remove varied the degree of overlapping between the classes. It was
+ more examples than the Tomek links does, so it is ex- concluded that class imbalance, by itself, does not seem to
+ pected that it will provide a more in depth data clean- be a problem, but when allied to highly overlapped classes,
+ ing. Diﬀerently from NCL which is an under-sampling it can signiﬁcantly decrease the number of minority class ex-
+ method, ENN is used to remove examples from both amples correctly classiﬁed. Domains with non-overlapping
+ classes. Thus, any example that is misclassiﬁed by its classes do not seem to be problematic for learning no mat-
+ three nearest neighbors is removed from the training set. ter the degree of imbalance. Moreover, in [12] Japkowicz
+ performed several experiments on artiﬁcial data sets and
+5. EXPERIMENTAL EVALUATION concluded that class imbalances do not seem to systemat-
+ ically cause performance degradation. She concludes that
+The main objective of our research is to compare several bal- the imbalance problem is a relative problem depending on
+ancing methods published in the literature, as well as the both the complexity of the concept1 and the overall size of
+three proposed methods, in order to verify whether those the training set.
+methods can eﬀectively deal in practice with the problem of
+class imbalance. To make this comparison, we have selected The relationship between training set size and improper clas-
+thirteen data sets from UCI [3] which have diﬀerent degrees siﬁcation performance for imbalanced data sets seems to be
+of imbalance. Table 3 summarizes the data employed in this that on small imbalanced data sets the minority class is
+study. For each data set, it shows the number of examples poorly represented by an excessively reduced number of ex-
+(#Examples), number of attributes (#Attributes), number amples, that might not be suﬃcient for learning, especially
+of quantitative and qualitative attributes, class attribute dis- when a large degree of class overlapping exists and the class
+tribution and the majority class error. For data sets having is further divided into subclusters. For larger data sets, the
+more than two classes, we chose the class with fewer ex- eﬀect of these complicating factors seems to be reduced, as
+amples as the positive class, and collapsed the remainder the minority class is better represented by a larger number
+as the negative class. As the Letter and Splice data sets of examples. This trend is conﬁrmed by the graph shown
+have a similar number of examples in the minority classes, in Figure 4 which shows how the AUC is aﬀected by the
+we created two data sets with each of them: Letter-a and number of positive training examples in the data sets.
+Letter-vowel, Splice-ie and Splice-ei.
+In our experiments, we used release 8 of the C4.5 symbolic In a second stage, the over and under-sampling methods de-
+learning algorithm to induce decision trees [20]. Firstly, scribed in Section 4 were applied to the original data sets.
+ 1Where the “concept complexity” corresponds to the num-
+ ber of subclusters into which the classes are subdivided.
+Sigkdd Explorations. Volume 6, Issue 1 - Page 24
+ Table 3: Data sets summary descriptions.
+ Data set #Examples #Attributes Class Class % Majority
+ (min., maj.) Error
+ Pima 768 (quanti., quali.) (min., maj.) (34.77%, 65.23%) 65.23%
+ German 1000 (30.00%, 70.00%) 70.00%
+ Post-operative 8 (8,0) (1, 0) (26.67%, 73.33%) 73.33%
+ Haberman 90 (26.47%, 73.53%) 73.53%
+ Splice-ie 306 20 (7,13) (Bad, Good) (24.09%, 75.91%) 75.91%
+ Splice-ei 3176 (23.99%, 76.01%) 76.01%
+ Vehicle 3176 8 (1,7) (S, remainder) (23.52%, 76.48%) 76.48%
+ Letter-vowel 846 (19.39%, 80.61%) 80.61%
+ New-thyroid 20000 3 (3,0) (Die, Survive) (16.28%, 83.72%) 83.72%
+ E.Coli 215 (10.42%, 89.58%) 89.58%
+ Satimage 336 60 (0,60) (ie, remainder) (9.73%, 90.27%) 90.27%
+ Flag 6435 (8.76%, 91.24%) 91.24%
+ Glass 194 60 (0,60) (ei, remainder) (7.94%, 92.06%) 92.06%
+ Letter-a 214 (3.95%, 96.05%) 96.05%
+ Nursery 20000 18 (18,0) (van, remainder) (2.55%, 97.45%) 97.45%
+ 12960
+ 16 (16,0) (all vowels, remainder)
+ 5 (5,0) (hypo, remainder)
+ 7 (7,0) (iMU, remainder)
+ 36 (36,0) (4, remainder)
+ 28 (10,18) (white, remainder)
+ 9 (9,0) (Ve-win-float-proc, remainder)
+ 16 (16,0) (a, remainder)
+ 8 (8,0) (not recom, remainder)
+Figure 4: Number of positive training examples versus AUC. can be detrimental to the minority class, since reducing the
+ error rate in the majority class, which stands for most of the
+100 examples, would result in a greater impact over the overall
+ error rate. On the other hand, it still seems to be an open-
+90 ended question if pruning can lead to a performance im-
+ provement for decision trees grown over artiﬁcially balanced
+80 data sets. One argument against pruning is that if pruning
+AUC (%) is allowed to execute under these conditions, the learning
+ AUC Unpruned (%)70system would prune based on false assumption, i.e., that
+ the test set distribution matches the training set distribu-
+60 tion [23].
+50 Figure 5 shows a comparison of the eﬀect of pruning de-
+ cision trees on the original and balanced data sets. Line
+40 100 1000 10000 x = y represents when both pruned and unpruned decision
+ 10 trees obtain the same AUC. Plots above this line represent
+ that unpruned decision trees obtained better results, and
+ Number of positive examples plots under this line the opposite. Figure 5 clearly shows
+ that pruning rarely leads to an improvement in AUC for the
+ Pima New-thyroid original and balanced data sets.
+ German E-coli
+ Post-operative
+ Haberman Satimage
+ Splice-ie Flag
+ Splice-ei
+ Vehicle Glass
+ Letter-vowel Letter-a
+ Nursery
+Smote, Random over-sampling, Random under-sampling and Figure 5: AUC of pruned versus unpruned decision trees for
+CNN methods have internal parameters that allow the user the original and balanced data sets.
+to set up the resulting class distribution obtained after the
+application of these methods. We decided to add/remove 100
+examples until a balanced distribution was reached. This
+decision is motivated by the results presented in [23], in 90
+which it is shown that when AUC is used as performance
+measure, the best class distribution for learning tends to be 80
+near the balanced class distribution.
+ 70
+The results obtained in our experiments are summarized
+in Tables 4 and 5. Table 4 shows the performance results 60
+for the original, as well as for the over-sampled data sets.
+Table 5 shows the results obtained for the under-sampled 50
+data sets. The performance results are reported in terms of
+AUC. The numbers between brackets are the corresponding 40
+standard deviations. As stated earlier, these results were
+obtained with 10-fold cross-validation. AUCs were measured 40 50 60 70 80 90 100
+over decision trees pruned with the default C4.5 pruning
+parameter setting (25% conﬁdence level) and over unpruned AUC Pruned (%)
+decision trees.
+ Original Random over-sampling
+Although some research papers state that pruning might be CNN NCL
+helpful with imbalanced data sets in some circumstances [4],
+other papers indicate that when target misclassiﬁcation costs CNN+Tomek Smote
+or class distributions are unknown, then pruning should be Tomek Smote+ENN
+avoided [26; 2]. One reason to avoid pruning is that most OSS Smote+Tomek
+pruning schemes, including the one used by C4.5, attempt
+to minimize the overall error rate. These pruning schemes Random under-sampling
+ In Tables 4 and 5 the results in bold indicate the best AUCs
+ obtained for each data set considering pruned and unpruned
+ decision trees independently. Note that all best results were
+ obtained by the over-sampling methods. In order to facili-
+ tate the analysis of the results, Tables 6 and 7 present these
+ results as a ranking of methods for pruned and unpruned
+ decision trees respectively. The over-sampling methods are
+Sigkdd Explorations. Volume 6, Issue 1 - Page 25
+ Table 4: AUC results for the original and over-sampled data sets.
+Data set Pruning Original Rand Over Smote Smote+Tomek Smote+ENN
+Pima 83.66(4.77)
+German yes 81.53(5.11) 85.32(4.17) 85.49(5.17) 84.46(5.84) 83.64(5.35)
+Post-operative 80.91(4.36)
+Haberman no 82.33(5.70) 86.03(4.14) 85.97(5.82) 85.56(6.02) 83.90(3.70))
+Splice-ie
+Splice-ei yes 79.19(5.84) 84.65(3.80) 80.74(5.43) 81.75(4.78) 59.83(33.91)
+Vehicle 59.48(34.91)
+Letter-vowel no 85.94(4.14) 85.56(4.31) 84.51(4.55) 84.02(3.94) 76.38(5.51)
+New-thyroid
+E.Coli yes 49.29(2.26) 68.79(23.93) 55.66(24.66) 41.80(16.59) 77.01(5.10)
+Satimage 97.97(0.74)
+Flag no 78.23(15.03) 71.33(23.43) 68.19(26.62) 47.99(16.61) 98.88(0.34)
+Glass 98.85(0.60)
+Letter-a yes 58.25(12.26) 71.81(13.42) 72.23(9.82) 75.73(6.55) 99.49(0.16)
+Nursery 97.92(1.09)
+ no 67.91(13.76) 73.58(14.22) 75.45(11.02) 78.41(7.11) 98.22(0.90)
+ 98.94(0.22)
+ yes 98.76(0.56) 98.89(0.47) 98.46(0.87) 98.26(0.51) 99.19(0.15)
+ 99.22(1.72)
+ no 99.30(0.30) 99.09(0.27) 99.19(0.28) 99.13(0.31) 99.22(1.72)
+ 95.29(3.79)
+ yes 98.77(0.46) 98.80(0.44) 98.92(0.44) 98.87(0.44) 95.29(3.79)
+ 95.67(1.18)
+ no 99.47(0.61) 99.52(0.60) 99.52(0.26) 99.51(0.32) 96.06(1.20)
+ 79.32(28.83)
+ yes 98.49(0.84) 99.14(0.73) 98.96(0.98) 98.96(0.98) 78.56(28.79)
+ 92.90(7.30)
+ no 98.45(0.90) 99.13(0.75) 99.04(0.85) 99.04(0.85) 93.40(7.61)
+ 99.91(0.12)
+ yes 98.07(0.63) 98.80(0.32) 98.90(0.20) 98.90(0.20) 99.91(0.14)
+ 97.80(1.07)
+ no 98.81(0.33) 98.84(0.27) 99.15(0.17) 99.14(0.17) 99.20(0.51)
+ yes 94.73(9.24) 98.39(2.91) 98.91(1.84) 98.91(1.84)
+ no 94.98(9.38) 98.89(2.68) 98.91(1.84) 98.91(1.84)
+ yes 87.64(15.75) 93.24(6.72) 95.49(4.30) 95.98(4.21)
+ no 92.50(7.71) 93.55(6.89) 95.49(4.30) 95.98(4.21)
+ yes 93.73(1.91) 95.34(1.25) 95.43(1.03) 95.43(1.03)
+ no 94.82(1.18) 95.52(1.12) 95.69(1.28) 95.69(1.28)
+ yes 45.00(15.81) 79.91(28.72) 73.62(30.16) 79.30(28.68)
+ no 76.65(27.34) 79.78(28.98) 73.87(30.34) 82.06(29.52)
+ yes 88.16(12.28) 92.20(12.11) 91.40(8.24) 91.40(8.24)
+ no 88.16(12.28) 92.07(12.09) 91.27(8.38) 91.27(8.38)
+ yes 99.61(0.40) 99.77(0.30) 99.91(0.12) 99.91(0.12)
+ no 99.67(0.37) 99.78(0.29) 99.92(0.12) 99.92(0.12)
+ yes 99.79(0.11) 99.99(0.01) 99.21(0.55) 99.27(0.36)
+ no 99.96(0.05) 99.99(0.01) 99.75(0.34) 99.53(0.31)
+highlighted with a light gray color, and the results obtained although extreme over-sampling performs almost as well.
+with the original data sets with a dark gray color. Note that, On the other hand, Japkowicz and Stephen [13] compare
+in general, over-sampling methods are better ranked than several methods of over and under-sampling on a series of
+the under-sampling methods. Hsu’s Multiple Comparison artiﬁcial data sets and conclude that over-sampling is more
+with the Best (MCB) test was performed in order to ver- eﬀective than under-sampling at reducing error rate.
+ify if signiﬁcant diﬀerences exist, with 95% conﬁdence level,
+among the best ranked method and the remaining methods. In our opinion, the good results obtained by over-sampling
+The results are also summarized in Tables 6 and 7, where are not completely unexpected. As stated before, it seems
+methods marked with an asterisk obtained statistically in- that the loss of performance is directly related to the lack of
+ferior results when compared to the top ranked method. minority class examples in conjunction with other compli-
+ cating factors. Over-sampling is the class of methods that
+Conversely, over-sampling methods in general and Random most directly attack the problem of the lack of minority class
+over-sampling in particular are well-ranked among the re- examples.
+mainder methods. This result seems to diverge with several
+papers previously published in the literature. Drummond It is worth mentioning that two of our proposed methods,
+and Holte [8] report that when using C4.5’s default settings, Smote + Tomek and Smote + ENN are generally ranked
+over-sampling is surprisingly ineﬀective, often producing lit- among the best for data sets with a small number of positive
+tle or no change in performance in response to modiﬁcations examples. Considering only data sets with less than 100 pos-
+of misclassiﬁcation costs and class distribution. Moreover, itive examples (in our experiments there are 6 of them: Flag,
+they note that over-sampling prunes less and therefore gen- Glass, Post-operative, New-thyroid, E.Coli and Haberman),
+eralizes less than under-sampling, and that a modiﬁcation at least one of the proposed methods provided meaningful
+of the C4.5’s parameter settings to increase the inﬂuence results for all 6 data sets for pruned trees – Table 6, and
+of pruning and other overﬁtting avoidance factors can re- for 5 of the 6 data sets for unpruned trees – Table 7. This
+establish the performance of over-sampling. In our exper- seems to indicate that these methods could be appropriate
+iments, Random over-sampling did not produce overﬁtted in domains having such conditions.
+decision trees even when these trees were left unpruned, as
+it can be conﬁrmed by the higher AUC values obtained by Since over-sampling methods, as well as unpruned decision
+this method for unpruned trees. In addition, under-sampling trees obtained very good performance results, further anal-
+methods did not perform as well as over-sampling meth- ysis will focus on these results. In addition to classiﬁer per-
+ods, even when heuristics to remove cases were considered formance results, we also attempted to measure the syntac-
+in under-sampling. tic complexity of the induced models. Syntactic complexity
+ is given by two main parameters: the mean number of in-
+Moreover, Domingos [7] reports that concerning concept duced rules (branches) and the mean number of conditions
+learning problems, C4.5 Rules produces lower cost classi- per rule. Tables 8 and 9 respectively show the mean number
+ﬁers using under-sampling than over-sampling. Ling and of induced rules and the mean number of condition per rule
+Li [16] compare over and under-sampling for boosted C4.5 for the over-sampling methods and the original data sets
+and report that under-sampling produces better lift index, with unpruned decision trees. The best results are shown
+ in bold, and the best results obtained by an over-sampling
+Sigkdd Explorations. Volume 6, Issue 1 - Page 26
+ Table 5: AUC results for the under-sampled data sets.
+ Data set Pruning Rand Under CNN CNN+Tomek Tomek OSS NCL
+ Pima yes 81.61(4.48)
+ German no 81.17(3.87) 79.60(6.22) 80.30(3.86) 82.56(5.11) 77.89(5.37) 82.55(3.53)
+ Post-operative yes 77.89(3.85)
+ Haberman no 81.49(4.29) 80.08(5.82) 81.71(3.69) 83.11(4.65) 79.23(4.81) 85.07(3.54)
+ Splice-ie yes 42.34(28.12)
+ Splice-ei no 79.85(3.05) 79.85(5.56) 79.48(5.01) 78.87(4.27) 79.20(3.15) 45.62(32.71)
+ Vehicle yes 84.54(3.32) 82.25(5.59) 81.70(4.00) 85.90(3.99) 82.96(3.22) 68.01(13.99)
+ Letter-vowel no 69.29(14.13)
+ New-thyroid yes 49.11(14.07) 49.20(8.91) 49.02(11.34) 46.16(5.89) 46.31(18.77) 98.38(0.57)
+ E.Coli no 55.52(24.47) 65.69(21.64) 75.79(16.86) 66.45(23.29) 64.44(20.88) 99.15(0.36)
+ Satimage yes 98.77(0.47)
+ Flag no 66.07(10.26) 58.36(10.26) 55.73(14.31) 64.46(10.95) 62.70(11.50) 99.40(0.66)
+ Glass yes 68.40(10.17) 58.36(10.26) 55.73(14.31) 69.59(13.30) 62.03(11.82) 97.94(1.05)
+ Letter-a no 98.17(1.12)
+ Nursery yes 97.46(1.10) 98.39(0.64) 97.55(0.46) 98.69(0.51) 97.37(0.84) 98.17(0.30)
+ no 98.80(0.40) 99.17(0.36) 98.82(0.32) 99.18(0.43) 98.93(0.30) 98.81(0.17)
+ yes 93.44(9.74)
+ no 98.74(0.46) 98.78(0.46) 98.85(0.42) 98.78(0.46) 98.83(0.45) 93.69(9.90)
+ yes 91.73(8.00)
+ no 99.25(0.48) 99.27(0.77) 99.47(0.27) 99.44(0.60) 99.33(0.66) 92.04(8.15)
+ yes 94.42(1.53)
+ no 97.25(1.95) 98.62(0.67) 98.34(1.32) 98.26(0.90) 98.79(0.67) 95.06(1.27)
+ yes 44.47(15.71)
+ no 97.80(0.94) 98.64(0.63) 98.42(1.02) 98.41(0.90) 98.71(0.97) 76.13(27.80)
+ yes 91.67(12.76)
+ no 97.69(0.43) 98.03(0.37) 97.97(0.46) 98.18(0.53) 97.66(0.30) 91.67(12.76)
+ yes 99.60(0.40)
+ no 98.26(0.28) 98.49(0.31) 98.39(0.22) 98.90(0.18) 98.27(0.19) 99.67(0.37)
+ yes 99.79(0.12)
+ no 94.87(5.00) 94.79(10.14) 94.54(10.10) 94.73(9.24) 92.72(10.55) 99.89(0.09)
+ 94.87(5.00) 94.79(10.14) 94.54(10.10) 94.98(9.38) 92.72(10.55)
+ 88.75(12.45) 80.32(19.96) 80.34(19.85) 91.57(7.81) 83.97(21.27)
+ 88.64(12.46) 81.13(20.00) 81.95(19.90) 94.03(5.56) 83.76(21.17)
+ 92.34(1.27) 92.25(1.45) 92.73(1.38) 94.21(1.76) 92.85(1.19)
+ 92.86(1.29) 92.35(1.35) 92.90(1.38) 95.11(1.29) 92.84(1.22)
+ 71.13(28.95) 49.12(21.57) 75.85(30.26) 45.00(15.81) 45.00(15.81)
+ 78.35(29.98) 78.90(28.63) 75.64(29.37) 78.59(28.75) 81.73(29.51)
+ 82.44(8.99) 58.44(13.15) 72.69(14.07) 87.15(16.47) 72.16(16.84)
+ 80.47(13.25) 64.31(14.21) 75.44(11.61) 87.00(16.75) 78.76(12.52)
+ 99.35(0.48) 99.60(0.37) 99.61(0.37) 99.61(0.40) 99.66(0.46)
+ 99.46(0.42) 99.66(0.37) 99.65(0.38) 99.67(0.37) 99.67(0.45)
+ 97.52(0.82) 99.55(0.21) 98.77(0.35) 99.80(0.08) 99.47(0.19)
+ 98.76(0.22) 99.84(0.13) 99.57(0.21) 99.89(0.08) 99.83(0.08)
+ Table 6: Performance ranking for original and balanced data sets for pruned decision trees.
+Data set 1o 2o 3o 4o 5o 6o 7o 8o 9o 10o 11o
+Pima Smt RdOvr Smt+Tmk Smt+ENN Tmk NCL Original RdUdr CNN+Tmk CNN* OSS*
+German RdOvr Smt+Tmk Smt+ENNSmt RdUdr CNN CNN+Tmk*OSS* Original* Tmk* NCL*
+Post-operativeRdOvr Smt+ENNSmt Original CNN RdUdr CNN+Tmk OSS* Tmk* NCL* Smt+Tmk*
+Haberman Smt+ENNSmt+Tmk Smt RdOvr NCL RdUdr Tmk OSS* CNN* Original* CNN+Tmk*
+Splice-ie RdOvr Original Tmk Smt CNN NCL Smt+Tmk Smt+ENN*CNN+Tmk*RdUdr* OSS*
+Splice-ei Smt Smt+Tmk Smt+ENNCNN+TmkOSS RdOvr Tmk CNN NCL Original RdUdr
+Vehicle RdOvr Smt Smt+Tmk OSS CNN OriginalCNN+Tmk Tmk NCL* Smt+ENN* RdUdr*
+Letter-vowel Smt+ENNSmt+Tmk Smt RdOvr Tmk* NCL* Original* CNN* CNN+Tmk*RdUdr* OSS*
+New-thyroid Smt+ENNSmt+Tmk Smt RdOvr RdUdr CNN Original Tmk CNN+Tmk NCL OSS
+E.Coli Smt+Tmk Smt Smt+ENNRdOvr NCL Tmk RdUdr Original OSS CNN+Tmk*CNN*
+Satimage Smt+ENNSmt Smt+Tmk RdOvr NCL Tmk Original* OSS* CNN+Tmk*RdUdr* CNN*
+Flag RdOvr Smt+ENNSmt+Tmk CNN+TmkSmt RdUdr CNN* OSS* Tmk* Original* NCL*
+Glass Smt+ENNRdOvr NCL Smt Smt+TmkOriginalTmk RdUdr CNN+Tmk*OSS* CNN*
+Letter-a Smt+Tmk Smt+ENNSmt RdOvr OSS OriginalTmk CNN+Tmk NCL CNN RdUdr*
+Nursery RdOvr Tmk Original NCL CNN* OSS* Smt+Tmk* Smt* CNN+Tmk*Smt+ENN* RdUdr*
+ Table 7: Performance ranking for original and balanced data sets for unpruned decision trees.
+Data set 1o 2o 3o 4o 5o 6o 7o 8o 9o 10o 11o
+Pima RdOvr Smt Smt+Tmk Smt+ENNTmk NCL Original CNN+Tmk RdUdr CNN* OSS*
+German Original Tmk RdOvr NCL RdUdr Smt Smt+Tmk Smt+ENN OSS CNN CNN+Tmk
+Post-operativeOriginal CNN+TmkRdOvr Smt Tmk CNN OSS Smt+ENN RdUdr Smt+Tmk* NCL*
+Haberman Smt+Tmk Smt+ENN Smt RdOvr Tmk NCL RdUdr Original OSS* CNN* CNN+Tmk*
+Splice-ie Original Smt Tmk CNN NCL Smt+Tmk RdOvr OSS* Smt+ENN* CNN+Tmk*RdUdr*
+Splice-ei RdOvr Smt Smt+Tmk Smt+ENNOriginal CNN+TmkTmk NCL OSS CNN RdUdr
+Vehicle RdOvr Smt Smt+Tmk OSS CNN Original CNN+TmkTmk Smt+ENN NCL RdUdr*
+Letter-vowel Smt+ENNSmt Smt+Tmk Tmk* RdOvr* NCL* Original* CNN* CNN+Tmk*OSS* RdUdr*
+New-thyroid Smt+ENNSmt Smt+Tmk RdOvr Original Tmk RdUdr CNN CNN+Tmk NCL OSS
+E.Coli Smt+Tmk Smt Smt+ENNTmk RdOvr Original NCL RdUdr OSS CNN+Tmk*CNN*
+Satimage Smt+ENNSmt Smt+Tmk RdOvr Tmk NCL Original CNN+Tmk*RdUdr* OSS* CNN*
+Flag Smt+Tmk OSS RdOvr CNN Tmk Smt+ENN RdUdr Original NCL CNN+Tmk Smt
+Glass Smt+ENNRdOvr NCL Smt Smt+TmkOriginal Tmk RdUdr OSS* CNN+Tmk*CNN*
+Letter-a Smt Smt+Tmk Smt+ENNRdOvr Tmk OSS NCL Original CNN CNN+Tmk RdUdr*
+Nursery RdOvr Original NCL Tmk CNN OSS* Smt* CNN+Tmk*Smt+Tmk* Smt+ENN* RdUdr*
+method, not considering the results obtained in the original where it can be observed that over-sampled data sets usu-
+data sets, are highlighted with a light gray color. ally lead to an increase in the number of induced rules if
+Figure 6 shows the results in Table 8 in graphical form, compared to the ones induced with the original data sets.
+ Comparing the mean number of rules obtained with the
+Sigkdd Explorations. Volume 6, Issue 1 - Page 27
+Table 8: Number of rules (branches) for the original and over-sampled data sets and unpruned decision trees.
+ Data set Original Rand Over Smote Smote+Tomek Smote+ENN
+ Pima 29.90(6.06) 63.80(13.15) 57.70(11.52) 54.20(12.91) 47.50(8.76)
+ German 315.50(21.41) 410.60(28.64) 367.30(20.85)
+ Post-operative 20.40(3.86) 355.10(24.20) 261.00(28.08)
+ Haberman 7.80(3.79) 36.80(3.05) 38.60(4.35) 32.70(5.87) 25.90(4.09)
+ Splice-ie 203.50(7.78) 25.20(10.94) 23.20(9.61) 25.00(7.70) 30.30(4.92)
+ Splice-ei 167.80(9.40) 258.70(13.07) 443.20(16.69)
+ Vehicle 26.20(3.29) 193.30(7.41) 374.50(20.41) 340.60(21.34) 307.90(17.21)
+ Letter-vowel 534.50(11.92) 34.90(3.38) 283.90(14.90) 248.80(12.90)
+ New-thyroid 5.40(0.84) 28.90(2.60) 1084.50(19.61)
+ E-coli 11.60(3.03) 678.80(19.07) 34.90(3.38) 29.20(2.82)
+ Satimage 198.80(11.04) 6.90(1.29) 1083.20(20.12) 1022.00(26.34)
+ Flag 28.60(6.52) 5.10(0.32) 16.70(3.20)
+ Glass 9.40(2.22) 17.70(2.91) 404.60(12.97) 6.90(1.29) 6.90(0.99)
+ Letter-a 59.10(3.45) 252.70(9.33) 52.50(12.47) 16.50(3.84) 12.70(3.23)
+ Nursery 229.40(4.65) 46.30(7.72) 17.70(1.77) 404.60(12.97) 339.40(13.80)
+ 13.00(1.33) 257.60(15.42) 46.50(13.36) 40.30(9.09)
+ 88.00(5.56) 1238.30(28.91) 17.70(1.77) 15.50(1.58)
+ 282.50(5.34) 257.60(15.42) 252.60(18.23)
+ 1204.70(27.94) 766.30(77.24)
+Table 9: Mean number of conditions per rule for the original and over-sampled data sets and unpruned decision trees.
+ Data set Original Rand Over Smote Smote+Tomek Smote+ENN
+ Pima 6.21(0.61) 7.92(0.64) 7.74(0.44) 7.59(0.54) 7.27(0.67)
+ German 6.10(0.17) 6.89(0.25) 10.27(0.51) 9.68(0.32) 7.35(0.58)
+ Post-operative 3.61(0.41) 4.86(0.26) 5.36(0.37) 4.75(0.52) 4.46(0.50)
+ Haberman 3.45(1.36) 5.71(1.43) 5.61(1.27) 5.81(1.02) 6.45(0.60)
+ Splice-ie 6.04(0.09) 6.15(0.04) 6.08(0.08) 6.00(0.09) 5.58(0.11)
+ Splice-ei 5.46(0.14) 5.70(0.08) 5.51(0.07) 5.41(0.09) 4.91(0.09)
+ Vehicle 7.21(0.70) 7.03(0.44) 7.09(0.50) 7.09(0.50) 6.63(0.38)
+ Letter-vowel 20.96(1.19) 19.32(0.82) 18.78(0.40) 18.78(0.40) 18.32(0.43)
+ New-thyroid 2.76(0.39) 2.85(0.17) 3.12(0.26) 3.12(0.26) 3.08(0.20)
+ E-coli 4.43(0.79) 5.48(0.41) 4.98(0.60) 4.92(0.65) 4.15(0.49)
+ Satimage 12.13(0.46) 15.93(0.42) 13.89(0.64) 13.89(0.64) 12.54(0.36)
+ Flag 3.92(0.70) 5.42(0.55) 9.43(1.04) 8.75(1.53) 6.71(1.23)
+ Glass 4.20(0.61) 5.80(0.51) 5.92(0.50) 5.92(0.50) 5.51(0.32)
+ Letter-a 7.30(0.22) 10.35(0.64) 10.97(0.38) 10.97(0.38) 10.86(0.36)
+ Nursery 6.51(0.01) 6.84(0.03) 6.87(0.03) 6.84(0.03) 6.41(0.12)
+over-sampled data sets, Random over-sampling and Smote Figure 7 allowing a clearer comparison for the mean number
++ ENN are the methods that provide a smaller increase in of conditions per rule for the over-sampled data sets. The
+the mean number of rules. It was expected that the appli- Smote + ENN method provided very good results. In fact,
+cation of over-sampling would result in an increase in the it was the best ranked in 10 data sets. Furthermore, this
+mean number of rules, since over-sampling increases the to- method was even able to obtain smaller values than those
+tal number of training examples, which usually generates achieved by decision trees induced from the original data sets
+larger decision trees. It can also be considered unexpected in 6 data sets. Moreover, considering only the over-sampled
+that Random over-sampling is competitive with Smote + data sets, this method was the best ranked for another 4
+Tomek and Smote + ENN in the number of induced rules, data sets.
+once Tomek and ENN were applied as data cleaning meth-
+ods with the objective of eliminating noise examples and Figure 7: Mean number of conditions per rule for original
+thus simplifying the induced decision trees. and balanced data sets and unpruned decision trees.
+Mean number of rules - balanced data 22
+ Mean number of conditions per rule 20
+ balanced data 18
+Figure 6: Mean number of induced rules for original and 16
+balanced data sets and unpruned decision trees. 14
+ 12
+ 1400 10
+1200 8
+ 6
+1000 4
+ 2
+800
+ 2
+600
+400 4 6 8 10 12 14 16 18 20 22
+ Mean number of conditions per rule - original data
+200 Original Smote+ENN
+ Random over-sampling Smote+Tomek
+0 Smote
+ 0 100 200 300 400 500 600
+ Mean number of rules - original data
+ Original Smote+ENN 6. CONCLUSION AND LIMITATIONS
+Random over-sampling Smote+Tomek
+ In this work we analyze the behavior of several over and
+ Smote under-sampling methods to deal with the problem of learn-
+The results presented in Table 9 are shown in a graph in
+Sigkdd Explorations. Volume 6, Issue 1 - Page 28
+ing from imbalanced data sets. Our results show that the [9] Ferri, C., Flach, P., and Herna´ndez-Orallo, J.
+over-sampling methods in general, and Smote + Tomek and Learning Decision Trees Using the Area Under the ROC
+Smote + ENN (two of the methods proposed in this work) in Curve. In ICML (2002), pp. 139–146.
+particular for data sets with few positive (minority) exam-
+ples, provided very good results in practice. Moreover, Ran- [10] Hand, D. J. Construction and Assessment of Classiﬁ-
+dom over-sampling, frequently considered an unprosperous cation Rules. John Wiley and Sons, 1997.
+method provided competitive results with the more complex
+methods. As a general recommendation, Smote + Tomek or [11] Hart, P. E. The Condensed Nearest Neighbor Rule.
+Smote + ENN might be applied to data sets with a small IEEE Transactions on Information Theory IT-14
+number of positive instances, a condition that is likely to (1968), 515–516.
+lead to classiﬁcation performance problems for imbalanced
+data sets. For data sets with larger number of positive ex- [12] Japkowicz, N. Class Imbalances: Are We Focusing
+amples, the Random over-sampling method which is compu- on the Right Issue? In Workshop on Learning from
+tationally less expensive than other methods would produce Imbalanced Data Sets II (2003).
+meaningful results.
+It should be noted that allocating half of the training exam- [13] Japkowicz, N., and Stephen, S. The Class Imbal-
+ples to the minority class does not always provide optimal ance Problem: A Systematic Study. IDA Journal 6, 5
+results [23]. We plan to address this issue in future research. (2002), 429–449.
+Furthermore, some under-sampling methods, such as Tomek
+links and NCL, that do not originally allow the user to spec- [14] Kubat, M., and Matwin, S. Addressing the Course
+ify the resulting class distribution, must be improved to in- of Imbalanced Training Sets: One-sided Selection. In
+clude this feature. Another natural extension to this work ICML (1997), pp. 179–186.
+is to analyze the ROC curves obtained from the classiﬁers.
+This might provide us with a more in depth understanding [15] Laurikkala, J. Improving Identiﬁcation of Diﬃcult
+of the behavior of balancing and cleaning methods. Small Classes by Balancing Class Distribution. Tech.
+ Rep. A-2001-2, University of Tampere, 2001.
+Acknowledgements. We wish to thank the anonymous
+reviewers and Dorival Lea˜o Pinto Ju´nior for their helpful [16] Ling, C. X., and Li, C. Data Mining for Direct Min-
+comments. This research was partially supported by the ing: Problems and Solutions. In KDD (1998), pp. 73–
+Brazilian Research Councils CAPES and FAPESP. 79.
+7. REFERENCES [17] Mitchell, T. M. Machine Learning. McGraw-Hill,
+ 1997.
+ [1] Batista, G. E. A. P. A., Bazan, A. L., and
+ Monard, M. C. Balancing Training Data for Auto- [18] Prati, R. C., Batista, G. E. A. P. A., and
+ mated Annotation of Keywords: a Case Study. In WOB Monard, M. C. Class Imbalances versus Class Over-
+ (2003), pp. 35–43. lapping: an Analysis of a Learning System Behavior. In
+ MICAI (2004), pp. 312–321. LNAI 2972.
+ [2] Bauer, E., and Kohavi, R. An Empirical Comparison
+ of Voting Classiﬁcation Algorithms: Bagging, Boosting, [19] Provost, F. J., and Fawcett, T. Analysis and Vi-
+ and Variants. Machine Learning 36 (1999), 105–139. sualization of Classiﬁer Performance: Comparison un-
+ der Imprecise Class and Cost Distributions. In KDD
+ [3] Blake, C., and Merz, C. UCI Repository of Machine (1997), pp. 43–48.
+ Learning Databases, 1998. http://www.ics.uci.edu/
+ ~mlearn/MLRepository.html. [20] Quinlan, J. R. C4.5 Programs for Machine Learning.
+ Morgan Kaufmann, CA, 1988.
+ [4] Chawla, N. V. C4.5 and Imbalanced Data Sets: In-
+ vestigating the Eﬀect of Sampling Method, Probabilis- [21] Stanfill, C., and Waltz, D. Instance-based Learning
+ tic Estimate, and Decision Tree Structure. In Workshop Algorithms. Communications of the ACM 12 (1986),
+ on Learning from Imbalanced Data Sets II (2003). 1213–1228.
+ [5] Chawla, N. V., Bowyer, K. W., Hall, L. O., [22] Tomek, I. Two Modiﬁcations of CNN. IEEE Trans-
+ and Kegelmeyer, W. P. SMOTE: Synthetic Minority actions on Systems Man and Communications SMC-6
+ Over-sampling Technique. JAIR 16 (2002), 321–357. (1976), 769–772.
+ [6] Ciaccia, P., Patella, M., and Zezula, P. M-tree: [23] Weiss, G. M., and Provost, F. Learning When
+ an Eﬃcient Access Method for Similarity Search in Training Data are Costly: The Eﬀect of Class Distri-
+ Metric Spaces. In VLDB (1997), pp. 426–435. bution on Tree Induction. JAIR 19 (2003), 315–354.
+ [7] Domingos, P. MetaCost: A General Method for Mak- [24] Wilson, D. L. Asymptotic Properties of Nearest
+ ing Classiﬁers Cost-Sensitive. In KDD (1999), pp. 155– Neighbor Rules Using Edited Data. IEEE Transactions
+ 164. on Systems, Man, and Communications 2, 3 (1972),
+ 408–421.
+ [8] Drummond, C., and Holte, R. C. C4.5, Class Imbal-
+ ance, and Cost Sensitivity: Why Under-sampling beats [25] Wilson, D. R., and Martinez, T. R. Reduction
+ Over-sampling. In Workshop on Learning from Imbal- Techniques for Exemplar-Based Learning Algorithms.
+ anced Data Sets II (2003). Machine Learning 38, 3 (2000), 257–286.
+ [26] Zadrozny, B., and Elkan, C. Learning and Mak-
+ ing Decisions When Costs and Probabilities are Both
+ Unknown. In KDD (2001), pp. 204–213.
+Sigkdd Explorations. Volume 6, Issue 1 - Page 29

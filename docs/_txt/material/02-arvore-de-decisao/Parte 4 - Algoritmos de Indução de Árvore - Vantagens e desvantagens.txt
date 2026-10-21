@@ -1,0 +1,64 @@
+ALGORITMOS DE INDUÇÃO DE ÁRVORES
+VANTAGENS E DESVANTAGENS
+ Cristiane Neri Nobre
+ADs – Discussões - vantagens
+◼ Flexibilidade
+Árvores de decisão não assumem nenhuma distribuição
+para os dados. Elas são métodos não paramétricos. O
+espaço de objetos é dividido em subespaços, e a cada
+subespaço é ajustado com diferentes modelos. Uma árvore
+de decisão fornece uma cobertura exaustiva do espaço de
+instâncias.
+ADs - Discussões - vantagens
+◼ Seleção de atributos
+O processo de construção de uma árvore de decisão
+seleciona os atributos a usar no modelo de decisão. Essa
+seleção de atributos produz modelos que tendem a ser
+bastante robustos contra a adição de atributos irrelevantes
+e redundantes
+ADs - Discussões - vantagens
+◼ Interpretabilidade
+Decisões complexas e globais podem ser aproximadas por
+uma série de decisões mais simples e locais. Todas as
+decisões são baseadas nos valores dos atributos usados
+para descrever o problema.
+ADs - Discussões - vantagens
+◼ Eficiência
+O algoritmo para aprendizado de árvore de decisão é um
+algoritmo guloso que é construído de cima para baixo (top-
+down), usando uma estratégia dividir para conquistar sem
+backtracking. Sua complexidade de tempo é linear com o
+número de exemplos
+ADs - Discussões - desvantagens
+ ◼ Valores ausentes
+ Algoritmos devem empregar mecanismos especiais para
+ abordar falta de valores
+ ◼ Atributos contínuos
+ Problema com ordenação.
+ Alguns autores estimam que a operação de ordenação
+ consuma 70% do tempo necessário para induzir uma
+ árvore de decisão em grandes conjuntos de dados com
+ muitos atributos contínuos
+ADs - Discussões - desvantagens
+ ◼ Instabilidade
+ Pequenas variações no conjunto de treinamento podem
+ produzir grande variações na árvore final.
+ Há uma forte tendência a inferência feitas próximo das
+ folhas serem menos confiáveis que aquelas feitas
+ próximas da raiz
+Referências Bibliográficas
+◼ RUSSELL, Stuart J.; NORVIG, Peter. Inteligência artificial. Rio de Janeiro: Elsevier, c2013.
+ xxi, 988 p. ISBN 9788535237016. Capítulo 18
+◼ INTELIGÊNCIA artificial uma abordagem de aprendizado de máquina. Rio de Janeiro LTC
+ 2011, ISBN 978-85-216-2146-1.
+◼ Gollapudi Sunila. Practical Machine Learning. 2016
+◼ Quinlan, J. Ross. C4.5: Programs for Machine Learning. Morgan Kaufmann, 1993.
+◼ Tom M. Mitchell. Machine Learning. McGraw-Hill, 1997.
+Sites:
+ https://www.analyticsvidhya.com/blog/2016/04/tree-based-algorithms-complete-tutorial-scratch-in-python/
+ http://www.cse.unsw.edu.au/~billw/cs9414/notes/ml/06prop/id3/id3.html
+ http://www.aispace.org/dTree/
+ http://www2.dbd.puc-rio.br/pergamum/tesesabertas/0210488_04_cap_03.pdf
+ rfaces.googlecode.com/files/7346C805d01.pdf
+ http://sites.ffclrp.usp.br/ccp/%28SEM%208%29/MATDID/EACBD/Apostila%20DW%20e%20DM%20PUC%20RJ.pdf
+ http://professor.ufabc.edu.br/~ronaldo.prati/MachineLearning/AM-I-Arvores-Decisao.pdf

@@ -1,0 +1,126 @@
+ETAPAS DE PRÉ-PROCESSAMENTO
+ TRATAMENTO DE DADOS AUSENTES
+ Cristiane Neri Nobre
+Tratamento de dados ausentes
+ o Base de dados podem contem dados ausentes e isto apresenta
+ dificuldades relacionadas à qualidade dos dados.
+ o Dados ausentes podem ser causadas por:
+ o problemas nos equipamentos que realizam a coleta
+ o a transmissão e o armazenamento dos dados
+ o ou problemas no preenchimento ou na entrados dos dados por seres
+ humanos
+ o Algumas técnicas de AM conseguem lidar bem com dados
+ ausentes, mas isso não acontece com todos os métodos de AM
+Tratamento de dados ausentes
+ # Int = Número de internações
+ Quais as razões para dados ausentes?
+ o O atributo não foi considerado importante na época da coleta (campo e-mail em 1990)
+ o Falta de conhecimento do campo (ex: tipo sanguíneo)
+ o Distração
+ o Falta de necessidade ou obrigação de apresentar um valor para o atributo (Ex. renda)
+ o Inexistência de um valor para o atributo em algumas instâncias (ex: número de partos
+ de for homem)
+ o Problema com equipamento ou processo utilizado para coleta, transmissão e
+ armazenamento de dados
+Tratamento de dados ausentes
+ Quais as alternativas para se resolver este problema de
+ dados ausentes?
+ 1. Eliminar as instâncias com dados ausentes
+ 2. Definir e preencher manualmente valores para os atributos com
+ valores ausentes
+ 3. Utilizar algum método ou heurística para automaticamente
+ definir valores para atributos com valores ausentes
+ 4. Empregar algoritmos de AM que lidam internamente com
+ valores ausentes
+Tratamento de dados ausentes
+ 1. Eliminar as instâncias com dados ausentes
+ Esta alternativa é geralmente empregada quando um dos atributos
+ com valores ausentes de uma instância é o que indica a sua classe.
+ Esta estratégia não é recomendada quando:
+ o Quando poucos atributos da instância possuem valores ausentes
+ o Quando o número de atributos com valores ausentes varia muito entre as instâncias
+ com esse problema
+ o Quando o número de instâncias que restarem for pequeno
+Tratamento de dados ausentes
+ 2. Definir e preencher manualmente valores para os
+ atributos com valores ausentes
+ Esta estratégia não é recomendada quando:
+ o O número de instâncias ou atributos com valores ausentes for muito grande
+Tratamento de dados ausentes
+ 3. Utilizar algum método ou heurística para
+ automaticamente definir valores para atributos com valores
+ ausentes
+ Esta estratégia é uma das mais recomendadas
+ Como imputar estes dados ausentes?
+ o Moda, média dos valores dos atributos
+ o Empregar um indutor para estimar o valor do atributo
+Tratamento de dados ausentes
+ Exemplo:
+ Após a imputação pela média/moda
+Tratamento de dados ausentes
+ 4. Empregar algoritmos de AM que lidam internamente
+ com valores ausentes
+ Este é o caso, por exemplo, de alguns algoritmos indutores de
+ árvore de decisão.
+ Em Python, veja os métodos:
+ Missforest - pip install missingpy
+ from missingpy import MissForest
+ KNNimputer - from sklearn.impute import KNNImputer
+Tratamento de dados ausentes
+ Na prática, em Python temos:
+ from sklearn.impute import KNNImputer
+ imputer = KNNImputer(n_neighbors=5)
+ # Ajusta (aprende) os parâmetros SOMENTE com o treino
+ imputer.fit(X_train)
+ # Aplica os mesmos parâmetros aprendidos em ambos os conjuntos
+ X_train_imputed = imputer.transform(X_train)
+ X_test_imputed = imputer.transform(X_test)
+Tratamento de dados ausentes
+ Vamos compreender a razão de usar a função fit apenas no treino e usar o predict no
+ treino e teste?
+ • Cenário
+ • Imagine que você já fez o split treino/teste, e está imputando Age usando Fare como referência
+ de similaridade (KNN com k=1).
+Tratamento de dados ausentes
+ • Cenário B (correto): fit só no treino, transform em ambos
+ • O "pool de vizinhos" disponível para imputar é só o treino. Calculando a distância de Te1
+ (Fare=8.00) até cada um:
+ Vizinho mais próximo: T3. Te1 recebe Age = 26 (o valor de T3).
+Tratamento de dados ausentes
+ • Cenário A (errado): fit no treino + teste juntos
+ • Agora o "pool de vizinhos" inclui Te2 também. Recalculando:
+ Vizinho mais próximo: Te2 (outra instância do próprio teste!). Te1 recebe Age = 45.
+Tratamento de dados ausentes
+ • O que aconteceu
+ • No Cenário A, o valor imputado para Te1 (26 → 45) mudou só porque Te2
+ estava no mesmo lote de avaliação.
+ • Isso é o vazamento: em produção, quando Te1 chegar como um passageiro novo
+ e real, o sistema não vai ter magicamente acesso a "Te2" para usar como vizinho,
+ cada passageiro novo chega sozinho, sem outros casos de teste disponíveis ao
+ lado dele.
+ • O Cenário B reflete essa realidade; o Cenário A, não.
+Resumindo:
+Se você deseja eliminar dados ausentes, o que pode
+ser feito?
+ ▪ Remoção de objetos em valores ausentes em qualquer atributo preditivo
+ ▪ Remoção de objetos em valores ausentes em todos os atributo preditivos
+ ▪ Remoção de objetos com valor ausente em qualquer/todos os atributos preditivos
+ selecionados
+ ▪ Remoção de atributo preditivo com valor ausente em qualquer objeto
+ ▪ Remoção de atributo preditivo com valor ausente em todos os objetos
+ ▪ Remoção de atributo preditivo com valor ausente em um número determinado de
+ objetos
+Mas como fazer isso em Python?
+ ▪ Veja o arquivo que está no CANVAS sobre o Titanic
+ AD_RF_Titanic_processamento.ipynb
+Mais informações sobre Dados ausentes
+ ▪ Se desejarem saber mais informações sobre dados
+ ausentes, veja a tese do meu aluno de doutorado:
+ ▪ Tese: MALTA: Um método para análise e tratamento de dados
+ ausentes
+ Fábio Martins de Oliveira
+ Link:
+ https://bib.pucminas.br/teses/Informatica_FabioMartinsDe
+ Oliveira_30652_TextoCompleto.pdf
+Referências:
+ Veja o capítulo 3 do livro de IA abaixo.

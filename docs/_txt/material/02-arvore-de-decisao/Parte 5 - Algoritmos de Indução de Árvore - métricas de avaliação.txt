@@ -1,0 +1,134 @@
+ALGORITMOS DE INDUÇÃO DE ÁRVORES
+MÉTRICAS DE AVALIAÇÃO
+ Cristiane Neri Nobre
+Métricas de avaliação
+Como avaliar a qualidade dos modelos obtidos?
+ • Depende do tipo de aprendizado!
+ • Em problemas de classificação, avaliar pela matriz de
+ confusão
+ • Em problemas de agrupamento, avaliar utilizando-se métricas
+ específicas tal como silhouette index
+ • Em problemas de regressão, utilizam-se as métricas: Mean squared
+ error (MSE), Mean absolute error (MAE), Normalized MSE and MAE
+ • Em problemas de associação, utilizam-se as métricas
+ suporte, confiança, lift, dentre outras
+Métricas de avaliação
+Como avaliar a qualidade do modelo pela matriz
+de confusão?
+Taxas de VP, VN, FP, FN, precisão, sensibilidade, F-measure, etc
+Métricas de avaliação
+O que significam estas métricas?
+Taxa de VP = equivale ao número de acerto do
+classificador para cada classe.
+Taxa de FN = equivale ao número de erro do
+classificador para cada classe.
+Estas métricas são complementares.
+Ou seja, se TVP = 10/60, o TFN será 50/60
+Métricas de avaliação
+Exemplo:
+ • A diagonal principal (marcados com círculos pretos) são
+ acertos do classificador
+ • O restantes são os erros do classificador
+ ✓ Marcado em vermelho estão os erros da classe 1
+ ✓ Marcado em laranja estão os erros da classe 2
+ ✓ Marcado em verde estão os erros da classe 3
+ • Assim, se olharmos por linha, teremos os acertos e erros
+ de cada classe
+Para esta matriz de confusão, temos:
+ 1 2 3
+TVP 11/15 4/5 6/9
+TFN 4/15 1/5 3/9
+Métricas de avaliação
+O que significam estas métricas:
+Taxa de FP = são as instâncias que não são da
+classe que estou considerando, mas foram
+classificadas como sendo
+Taxa de VN = são as instâncias que não são da
+classe que estou considerando, e foram classificadas
+como não sendo
+Estas duas métricas também são complementares.
+Métricas de avaliação
+Exemplo:
+ • Para calcular a taxa de FP, devemos olhar por coluna
+ para sabermos quantas instâncias foram classificadas de forma
+ incorreta na classe que estamos avaliando
+ ✓ Neste caso, 3 instâncias foram classificadas
+ incorretamente como sendo da classe 1
+ • Mas estas 3 instâncias é em quanto? Para saber o valor do
+ denominador é só você somar todas as instâncias das classe
+ que não estamos avaliando (2 e 3)
+ ✓ Neste caso, o total de instâncias que não são 1, são as
+ instâncias das classes 2 e 3, portanto o somatório é 14
+Assim, o valor de TFP para a classe 1 é: 3/14
+Métricas de avaliação
+Exemplo:
+ • Para calcular a taxa de FP, devemos olhar por coluna
+ para sabermos quantas instâncias foram classificadas de forma
+ incorreta na classe que estamos avaliando
+ ✓ Neste caso, 2 instâncias foram classificadas
+ incorretamente como sendo da classe 2
+ • Mas estas 2 instâncias é em quanto? Para saber o valor do
+ denominador é só você somar todas as instâncias das classe
+ que não estamos avaliando (1 e 3)
+ ✓ Neste caso, o total de instâncias que não são 2 são as
+ instâncias das classes 1 e 3, portanto o somatório é 24
+Assim, o valor de TFP para a classe 2 é: 2/24
+Métricas de avaliação
+Exemplo:
+ • Para calcular a taxa de FP, devemos olhar por coluna
+ para sabermos quantas instâncias foram classificadas de forma
+ incorreta na classe que estamos avaliando
+ ✓ Neste caso, 3 instâncias foram classificadas
+ incorretamente como sendo da classe 3
+ • Mas estas 3 instâncias é em quanto? Para saber o valor do
+ denominador é só você somar todas as instâncias das classe
+ que não estamos avaliando (1 e 2)
+ ✓ Neste caso, o total de instâncias que não são 3 são as
+ instâncias das classes 1 e 2, portanto o somatório é 20
+Assim, o valor de TFP para a classe 3 é: 3/20
+Métricas de avaliação
+Exemplo:
+Temos portanto: 1 2 3
+ 3/14 2/24 3/20
+ TFP 11/14 22/24 17/20
+ TVN
+Métricas de avaliação
+Mas, como avaliar o TVN?
+TVN da classe 1 é quem não é 1 e foi classificado como não sendo 1.
+Ou seja, soma-se as instâncias das classes 2 e 3 e tira-se quem foi
+classificado como 1, de forma indevida.
+Portanto, o TVN de 1 é 11/14.
+Métricas de avaliação
+Mas, como avaliar o TVN?
+TVN da classe 2 é quem não é 2 e foi classificado como não sendo 2.
+Ou seja, soma-se as instâncias das classes 1 e 3 e tira-se quem foi
+classificado como 2, de forma indevida.
+Portanto, o TVN de 2 é 22/24.
+Métricas de avaliação
+Mas, como avaliar o TVN?
+TVN da classe 3 é quem não é 3 e foi classificado como não sendo 3.
+Ou seja, soma-se as instâncias das classes 1 e 2 e tira-se quem foi
+classificado como 3, de forma indevida.
+Portanto, o TVN de 2 é 17/20.
+Métricas de avaliação
+As outras métricas são geradas a partir destas
+métricas anteriores!
+Precisão é a taxa de instâncias corretamente classificadas como
+ pertencentes a classe em questão dentre todos os que foram classificados
+ na classe em questão.
+Sensibilidade ou recall é a taxa de instâncias corretamente classificadas
+ como pertencentes a classe em questão dentre todos os que realmente são
+ da classe em questão
+Métricas de avaliação
+Acurácia é a taxa total instâncias corretamente classificadas.
+Ac = VP +VN
+ VP +VN + FP + FN
+F-Measure ou F1 Score é uma média harmônica entre precisão e sensibilidade,
+ atribuindo a mesma importância para o recall e precisão.
+Se você desejar atribuir importância diferente a estas duas métricas, utilize a
+equação:
+ Métricas de avaliação
+Para compreender melhor estas métricas de
+avaliação, leia o capítulo 9 do livro:
+Katti Faceli et al. Inteligência Artificial, Uma abordagem
+de Aprendizado de Máquina, LTC, 2015.

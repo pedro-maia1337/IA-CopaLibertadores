@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(.venv/Scripts/python -m pytest:*)",
+      "Bash(.venv/Scripts/python -m nslkdd.audit:*)",
+      "Bash(.venv/Scripts/python tools/py2nb.py:*)",
+      "Bash(.venv/Scripts/python notebooks/src/:*)",
+      "Read(docs/**)",
+      "Read(results/**)"
+    ],
+    "deny": [
+      "Edit(data/raw/**)",
+      "Write(data/raw/**)"
+    ]
+  }
+}

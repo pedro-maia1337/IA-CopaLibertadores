@@ -1,0 +1,154 @@
+ALGORITMOS DE INDUÇÃO DE ÁRVORES
+COMO GERAR?
+ Cristiane Neri Nobre
+ Árvore de Decisão – Como gerar?
+Exemplo
+• O objetivo é inferir uma “regra” que permita dizer se
+ devemos ou não esperar por uma mesa num
+ restaurante, o objetivo é aprender uma definição para
+ o predicado de objetivo VaiEsperar (Exemplo
+ extraído do livro do RUSSELL)
+Árvore de Decisão – Como gerar?
+• Problema: Esperar por uma mesa em um
+ restaurante.
+• O objetivo é aprender uma definição para o predicado
+ “vai esperar”.
+• Primeiramente é necessário definir quais atributos
+ estão disponíveis para descrever alguns exemplos
+ nesse domínio.
+Árvore de Decisão – Como gerar?
+Começa-se por definir os atributos que descreverem
+os exemplos:
+1. Alternativa: existe um restaurante alternativo próximo?
+2. Bar: existe uma área de bar confortável para esperar?
+3. Sexta/Sábado: hoje é Sexta ou Sábado?
+4. Fome: temos fome?
+5. Clientes: número de pessoas no restaurante (Nenhum, Algum, Cheio)
+6. Preço: gama de preços (R)
+7. Chuva: está chovendo lá fora?
+8. Reserva: fizemos uma reserva?
+9. Tipo de restaurante: Francês, Italiano, Tailandês, Burger, …
+10. Estimativa do tempo de espera: 0-10, 10-30, 30-60, >60
+ Árvore de Decisão – Como gerar?
+Exemplo Alternativo Bar Sex/Sab fome Cliente Preço Chuva Res Tipo Tempo Vai esperar?
+X1 Sim Não Não Sim Alguns RRR Não Sim Francês 0-10 Sim
+x2 Sim Não Não Sim Cheio R Não Não Tailandês 30-60 Não
+ Sim Não Não Alguns R Não Não Hamburger 0-10 Sim
+x3 Não Não Sim Sim Cheio R Sim Não 10-30 Sim
+ Não Sim Não Cheio RRR Não Sim Tailandês >60 Não
+x4 Sim Sim Não Sim Alguns RR Sim Sim Francês 0-10 Sim
+ Sim Não Não Nenhum R Sim Não Italiano 0-10 Não
+X5 Sim Não Não Sim Alguns RR Sim Sim Hamburger 0-10 Sim
+ Sim Sim Não Cheio R Sim Não Tailandês >60 Não
+X6 Não Sim Sim Sim Cheio RRR Não Sim Hamburger 10-30 Não
+ Não Não Não Nenhum R Não Não Italiano 0-10 Não
+X7 Não Sim Sim Sim Cheio R Não Não Tailandês 30-60 Sim
+ Hamburger
+X8 Não
+X9 Não
+X10 Sim
+X11 Não
+X12 Sim
+Árvore de Decisão – Como gerar?
+Qual seria um bom atributo para começarmos a árvore?
+ Vamos avaliar o atributo “Tipo”?
+Árvore de Decisão – Como gerar?
+ 13 46 8 12
+ 25 79 10 11
+ Italiano Tipo
+ 6
+Francês 10 Tailandês Hambúrger
+ 1 48 3 12
+ 5 2 11 79
+ O que significam estas cores?
+ Árvore de Decisão – Como gerar?
+ Francês 13 4 6 8 12 Hambúrger
+ 25 7 9 10 11
+ Italiano Tipo
+ Tailandês
+ 1 6 48 3 12
+ 2 11 79
+ 5 10
+Exemplo Alternativo Bar Sex/Sab fome Cliente Preço Chuva Res Tipo Tempo Vai esperar?
+X1 Sim Não Não Sim Alguns RRR Não Sim Francês 0-10 Sim
+x2 Sim Não Não Sim Cheio R Não Não Tailandês 30-60 Não
+ Sim Não Não Alguns R Não Não Hamburger 0-10 Sim
+x3 Não Não Sim Sim Cheio R Sim Não 10-30 Sim
+ Não Sim Não Cheio RRR Não Sim Tailandês >60 Não
+x4 Sim Sim Não Sim Alguns RR Sim Sim Francês 0-10 Sim
+ Sim Não Não Nenhum R Sim Não Italiano 0-10 Não
+X5 Sim Não Não Sim Alguns RR Sim Sim Hamburger 0-10 Sim
+ Sim Sim Não Cheio R Sim Não Tailandês >60 Não
+X6 Não Sim Sim Sim Cheio RRR Não Sim Hamburger 10-30 Não
+ Não Não Não Nenhum R Não Não Italiano 0-10 Não
+X7 Não Sim Sim Sim Cheio R Não Não Tailandês 30-60 Sim
+ Hamburger
+X8 Não
+X9 Não
+X10 Sim
+X11 Não
+X12 Sim
+Árvore de Decisão – Como gerar?
+ 13 46 8 12
+ 25 79 10 11
+ Italiano Tipo
+ 6
+Francês 10 Tailandês Hambúrger
+ 1 48 3 12
+ 5 2 11 79
+ O atributo “Tipo” é fraco porque nos deixa com
+quatro resultados possíveis, cada um dos quais tem o
+ mesmo número de exemplos positivos e negativos.
+ Ou seja, não ajuda na classificação.
+Árvore de Decisão – Como gerar?
+ E quanto ao atributo cliente:
+ O que vocês acham?
+ Seria uma boa escolha?
+ Árvore de Decisão – Como gerar?
+ 1 3 4 6 8 12
+ 2 5 7 9 10 11
+ Cliente
+ Nenhum Alguns Cheio
+ 7 11 1368 4 12
+ 2 5 9 10
+Exemplo Alternativo Bar Sex/Sab fome Cliente Preço Chuva Res Tipo Tempo Vai esperar?
+X1 Sim Não Não Sim Alguns RRR Não Sim Francês 0-10 Sim
+x2 Sim Não Não Sim Cheio R Não Não Tailandês 30-60 Não
+ Sim Não Não Alguns R Não Não Hamburger 0-10 Sim
+x3 Não Não Sim Sim Cheio R Sim Não 10-30 Sim
+ Não Sim Não Cheio RRR Não Sim Tailandês >60 Não
+x4 Sim Sim Não Sim Alguns RR Sim Sim Francês 0-10 Sim
+ Sim Não Não Nenhum R Sim Não Italiano 0-10 Não
+X5 Sim Não Não Sim Alguns RR Sim Sim Hamburger 0-10 Sim
+ Sim Sim Não Cheio R Sim Não Tailandês >60 Não
+X6 Não Sim Sim Sim Cheio RRR Não Sim Hamburger 10-30 Não
+ Não Não Não Nenhum R Não Não Italiano 0-10 Não
+X7 Não Sim Sim Sim Cheio R Não Não Tailandês 30-60 Sim
+ Hamburger
+X8 Não
+X9 Não
+X10 Sim
+X11 Não
+X12 Sim
+Árvore de Decisão – Como gerar?
+1 3 4 6 8 12
+2 5 7 9 10 11
+ Cliente
+Nenhum Alguns Cheio
+7 11 1368 4 12
+ 2 5 9 10
+Atributo bastante importante.
+Árvore de Decisão – Como gerar?
+E como ficariam os outros atributos?
+Faça uma análise visual e tenta descobrir qual atributo
+parece ser o mais importante para ser a raiz da árvore
+Árvore de Decisão – Como gerar?
+ Como avaliar matematicamente o ganho
+ de cada atributo?
+Referências Bibliográficas
+ ◼ RUSSELL, Stuart J.; NORVIG, Peter. Inteligência artificial. Rio de Janeiro: Elsevier, c2013. xxi,
+ 988 p. ISBN 9788535237016. Capítulo 18
+ ◼ LORENA et al. INTELIGÊNCIA artificial uma abordagem de aprendizado de máquina. Rio de
+ Janeiro LTC 2011, ISBN 978-85-216-2146-1.
+ ◼ QUINLAN, J. Ross. C4.5: Programs for Machine Learning. Morgan Kaufmann, 1993.
+ ◼ TOM, M. Mitchell. Machine Learning. McGraw-Hill, 1997.

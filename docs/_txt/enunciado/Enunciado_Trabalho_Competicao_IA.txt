@@ -1,0 +1,119 @@
+INTELIGÊNCIA ARTIFICIAL
+Professora: Cristiane Neri Nobre
+Trabalho em Competição
+Detecção de Intrusão em Redes
+1. Contexto e objetivo
+Esta atividade é uma competição entre equipes da turma. O objetivo é aplicar, de forma crítica e
+justificada, as etapas de pré-processamento estudadas ao longo da disciplina (balanceamento,
+tratamento de dados ausentes, dados redundantes e inconsistentes, conversão simbólico-numérica,
+transformação de atributos numéricos, redução de dimensionalidade, seleção de instâncias,
+eliminação de outliers, dentre outras) e comparar o desempenho de diferentes algoritmos de
+classificação em um problema real de detecção de intrusão em redes de computadores.
+Mais do que alcançar a melhor posição no ranking, a competição avalia se a equipe sabe justificar
+tecnicamente cada decisão de pré-processamento tomada e, principalmente, se sabe evitar
+armadilhas metodológicas como o vazamento de dados (data leakage), tema recorrente em todas as
+etapas já estudadas nesta disciplina até o momento.
+2. Base de dados: NSL-KDD
+O NSL-KDD é uma base de dados de detecção de intrusão em redes, amplamente utilizada em pesquisa
+de Aprendizado de Máquina aplicado à segurança da informação. Ela é uma versão corrigida do
+conhecido KDD Cup 99, criada especificamente para eliminar o excesso de registros
+redundantes/duplicados que existia na base original (chegando a cerca de 78% de duplicatas no
+conjunto de treino do KDD Cup 99), o que enviesava os classificadores a favor dos ataques mais
+frequentes.
+2.1 Características gerais
+ ○ 41 atributos descritivos + 1 atributo de classe (tipo de ataque) + 1 atributo de nível de dificuldade
+ ○ Atributos categóricos: protocol_type, service e flag
+ ○ Classes de ataque fortemente desbalanceadas (ex.: a classe U2R possui poucas dezenas de
+ instâncias, contra dezenas de milhares de tráfego normal)
+ ○ Conjuntos de treino (KDDTrain+) e teste (KDDTest+) já separados pelos autores da base, sem
+ instâncias duplicadas entre si
+2.2 Como acessar a base
+ ○ Kaggle: https://www.kaggle.com/datasets/hassan06/nslkdd
+3. Formato da competição
+○ Todas as equipes devem usar o MESMO split fixo de treino/teste fornecido pela base (KDDTrain+
+ e KDDTest+), não é permitido re-embaralhar ou criar um split próprio, para garantir comparação
+ justa entre equipes
+○ O conjunto de teste (KDDTest+) só pode ser usado na avaliação final. Toda decisão de pré-
+ processamento e ajuste de hiperparâmetros deve ser validada usando apenas o conjunto de
+ treino (ex.: validação cruzada ou um split adicional de validação dentro do treino)
+○ Métrica oficial do ranking: F1-score macro no conjunto de teste (não use apenas acurácia, as
+ classes são muito desbalanceadas, e a acurácia pode mascarar um classificador que ignora as
+ classes raras)
+4. Requisitos obrigatórios de pré-processamento
+No relatório final, cada equipe deve demonstrar que testou e comparou, no mínimo:
+ 1. estratégias de tratamento de dados redundantes/inconsistentes
+ 2. 2 técnicas de balanceamento de classes (ex.: SMOTE vs. RandomUnderSampler)
+ 3. 1 técnica de conversão simbólico-numérica, devidamente justificada (ex.: para o atributo service,
+ discuta o efeito da alta cardinalidade)
+ 4. 1 técnica de normalização/transformação de atributos numéricos
+ 5. 1 técnica de redução de dimensionalidade OU seleção de instâncias (a equipe escolhe qual)
+ 6. No mínimo 3 algoritmos de classificação diferentes, dentre os vistos em disciplina (ex.: Árvore de
+ Decisão, Random Forest, RN, etc)
+ 7. Explicabilidade do melhor modelo
+Fica a critério da equipe combinar livremente as técnicas acima, desde que todas sejam testadas e
+comparadas de forma explícita. Não basta escolher uma combinação e apresentar só o resultado
+final.
+5. Entregáveis
+ 1. Notebook (.ipynb) com todo o código, comentado e reprodutível do início ao fim
+ 2. Relatório curto (3 a 5 páginas) justificando cada escolha de pré-processamento, com a tabela
+ comparativa das combinações testadas
+6. Critérios de avaliação
+Critério Descrição Peso
+Desempenho
+ Posição da equipe no ranking da turma, pelo F1-macro obtido no conjunto de 40%
+Qualidade teste
+metodológica
+ Ausência de vazamento de dados (data leakage); pré-processamento 30%
+Comparação (imputação, balanceamento, normalização, seleção) ajustado somente no
+estruturada treino; justificativa técnica de cada escolha
+ Tabela comparando as combinações testadas (estratégia de pré-processamento 20%
+ × algoritmo × métricas), com discussão dos resultados
+Critério Descrição Peso
+ 10%
+Clareza da Organização do relatório e do notebook; reprodutibilidade do código
+apresentação
+Observação: uma equipe bem posicionada no ranking, mas que cometeu vazamento de dados (ex.:
+normalização ou balanceamento ajustados usando o conjunto de teste), terá a nota do critério
+"Qualidade metodológica" fortemente reduzida, independentemente da posição no leaderboard.
+7. Atenção: verifique o vazamento de dados
+Investigue a correlação de cada atributo com a classe antes de treinar qualquer modelo, e esteja
+preparado(a) para justificar, no relatório, qualquer atributo removido por esse motivo.
+8. Integridade acadêmica
+ ○ O código deve ser autoral da equipe. É permitido consultar documentação oficial das bibliotecas
+ e o material da disciplina
+ ○ Uso de ferramentas de IA generativa para apoio à redação ou depuração de código deve ser
+ declarado no relatório, indicando a ferramenta e a finalidade
+ ○ Equipes com código ou relatório substancialmente idênticos ao de outra equipe serão
+ penalizadas
+9. Formação dos grupos
+Os grupos devem ser os formados no CANVAS
+10. Pontos de controle
+A entrega deste trabalho será dividida em 4 etapas:
+Etapa Atividades Entrega Valor
+ 2,00
+1. Análise exploratória Caracterização da base NSL-KDD; Notebook com análise exploratória e
+dos dados breve diagnóstico dos dados. 4,00
+ identificação das classes, 4,00
+ Data: 24/10 5,00
+ desbalanceamento, atributos
+ categóricos, inconsistências,
+ redundâncias e possíveis problemas
+ de vazamento de dados.
+2. Pré-processamento Implementação e comparação de Notebook com experimentos de pré-
+ pelo menos 2 técnicas de
+ balanceamento, 1 técnica de processamento, resultados
+ codificação, 1 transformação
+ numérica e 1 técnica de redução de comparativos e justificativas.
+ dimensionalidade ou seleção de
+ instâncias. Tratamento dos dados Data: 07/11
+ redundantes/inconsistentes
+3. Construção e Treinamento de pelo menos 3 Notebook com resultados, métricas
+ algoritmos de classificação; e tabela comparativa dos modelos.
+avaliação dos comparação das combinações de
+ pré-processamento e algoritmos; Data: 21/11
+classificadores avaliação por validação cruzada e
+ escolha do melhor modelo.
+4. Competição e Avaliação final no KDDTest+, cálculo Notebook completo, relatório de 3 a
+apresentação final do F1-macro, ranking das equipes, 5 páginas e apresentação dos
+ explicabilidade do melhor modelo e resultados.
+ discussão dos resultados. Data: 28/11

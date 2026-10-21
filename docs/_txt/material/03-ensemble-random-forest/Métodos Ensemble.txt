@@ -1,0 +1,191 @@
+Ensembles Learning ou
+Aprendizagem em Conjunto
+ Cristiane Neri Nobre
+Fonte: jixta.files.wordpress.com
+Ensembles
+• Métodos que geram muitos classificadores e
+ combinam os seus resultados
+ “Consultar vários especialistas para tomada de decisão”
+• É amplamente aceito que o desempenho de um
+ conjunto de muitos classificadores fracos é
+ geralmente melhor do que um único classificador,
+ dada a mesma quantidade de informação de
+ treinamento
+ Ensembles
+https://scikit-learn.org/stable/modules/classes.html#module-sklearn.ensemble
+Ensembles
+Condições necessárias para um bom desempenho
+• Diversidade
+ • Classificadores base devem ser independentes
+ • Ideal: cometer erros diferentes
+• Acurácia
+ • Desempenho dos classificadores base deve ser melhor que
+ classificação aleatória
+Ensembles
+ • Sejam 3 classificadores induzidos para os
+ mesmos dados, com acurácia 0.6
+ • Se eles cometem os mesmos erros
+ • Acurácia do ensemble será 0.6
+ • Se eles são completamente independentes
+ • Ensembles erra classificação apenas se pelo menos 2
+ classificadores erram na predição
+Ensembles
+ • Combinação de predições
+ • Voto (média)
+ • Voto (média) ponderado
+Bagging
+• Cada classificador é induzido por uma amostra
+ diferente do conjunto de treinamento
+ • Mesmo tamanho do conjunto original
+ • Usa bootstrap
+• Classe definida por votação
+• Tende a reduzir variância associada com
+ classificadores base
+Técnica de amostragem Bootstrap
+ • No método booststrap, r subconjuntos de
+ treinamento são gerados a partir do conjunto de
+ exemplos original. Os exemplos são amostrados
+ aleatoriamente desse conjunto, com reposição.
+ Logo um exemplo pode estar presente em um
+ determinado subconjunto de treinamento mais de
+ uma vez.
+ • Os subconjuntos de testes são formados pelas
+ sequências que não estão no conjunto de treino
+ Cerca de um terço das instâncias são deixados de fora da amostra de
+ bootstrap e não são usados na construção da k-árvore.
+Técnica de amostragem Bootstrap
+ Normalmente adota-se r  100. A ideia básica é
+ repetir o experimento um número alto de vezes e
+ estimar o desempenho nesses experimentos
+ replicados.
+ Por este motivo, o bootstrap é um procedimento
+ custoso.
+ Há vários estimadores bootstrap, e o mais comum é
+ o e0. Neste cada conjunto de treinamento tem n
+ exemplos, amostrados com reposição do conjunto
+ original, sendo n o número total de exemplos nesse
+ conjunto
+Técnica de amostragem Bootstrap
+Técnica de amostragem Bootstrap
+ Como se avalia o resultado final?
+ • O resultado final é dado pela média do
+ desempenho observado em cada subconjunto de
+ teste.
+Bagging
+• Seja o conjunto de dados de treinamento {x1, x2, x3,
+ x4, x5, x6}
+Bagging
+Boosting
+ • Conjunto de técnicas
+ • Adaboost é uma das mais conhecidas
+ • A cada iteração
+ • Induz classificador
+ • Pondera cada exemplo do conjunto de dados completo pelo
+ desempenho do classificador base
+ • Quanto mais difícil de ser aprendido, maior o peso associado ao exemplo
+ • Boosting funciona de forma semelhante a
+ minimização por gradiente descendente
+Boosting
+ Seja o conjunto de dados de treinamento {x1, x2,
+ x3, x4, x5}
+Boosting
+ • Indicado para classificadores base fracos
+ • Acurácia ligeiramente melhor que palpite
+ aleatório
+ • Convergência rápida
+ • Pouco indicado para dados com ruídos e
+ pequenos conjuntos de dados
+ • Por focar em exemplos difíceis de serem
+ classificados
+Stacking
+ • Um algoritmo estimador aprende a combinar
+ predições de modelos base
+ • Modelos gerados por algoritmos base
+ • Saídas combinadas por algoritmo estimador
+ • Algoritmo de AM
+ • Algoritmos base podem ser:
+ • Homogêneos
+ • Heterogêneos
+Ensembles de Árvores de decisão
+ • Combina a predição de várias árvores de
+ decisão
+ • Duas principais abordagens:
+ • Extreme Gradient Boosting
+ • Random Forest
+Extreme Gradiente Boosting
+ • XGBoost
+ • Combina árvores geradas pelo algoritmo CART
+ • Pondera a resposta de cada árvore para
+ reduzir complexidade do modelo final
+Random Forest - Por quê Forests?
+Muitas árvores!
+Por quê Random Forests?
+Muitas árvores...
+Random Forests
+• É um algoritmo ensemble proposto por Breiman (veja
+ o artigo Random Forests)1 que constrói muitas
+ árvores de decisão as quais são utilizadas para
+ classificar um novo exemplo por meio do voto
+ majoritário
+• Ou seja, o algoritmo de Random Forest (RF) é um
+ termo geral para métodos de ensemble utilizando
+ classificadores do tipo árvore
+• Utiliza a amostragem Bootstrap
+Disponível em https://link.springer.com/content/pdf/10.1023%2FA%3A1010933404324.pdf
+Disponível em https://link.springer.com/content/pdf/10.1023%2FA%3A1010933404324.pdf
+Random Forests
+Funcionamento do Bagging Funcionamento do Random Forest
+ Algoritmo Random Forest
+▪ Treina cada árvore com amostras geradas a partir do
+ método de amostragem bootstrap
+▪ Para cada conjunto de instâncias, o Random Forest
+ considera somente m variáveis selecionadas
+ aleatoriamente do conjunto de dados
+▪ Random Forest não faz poda
+O resultado final obtido a partir das árvores é dado por:
+▪ Para problemas de classificação: voto majoritário
+▪ Para problemas de regressão: Média dos valores preditos
+ Desvantagem da Random Forest
+▪ Difícil extrair o conhecimento das árvores, apesar de
+ o método exibir os atributos mais relevantes
+ Como definir o número de atributos a serem
+ utilizados?
+▪ Alguns métodos utilizam raiz quadrada da
+ quantidade de atributos
+▪ Outros utilizam o log da quantidade de atributos
+ Comandos para Random Forest, em Python
+Random Forest: from sklearn.ensemble import
+RandomForestClassifier
+modelo = RandomForestClassifier(n_estimators=10, max_features=
+3, criterion='gini', random_state = 0)
+modelo.fit(X_treino, y_treino)
+Veja os códigos abaixo que estão no CANVAS:
+Lendo_e_tratando_arquivo_IRIS.ipynb
+Random_Forest.ipynb
+ Comandos para Random Forest, em Python
+Veja no código anterior, como imprimir os atributos mais
+relevantes que o Random Forest considerou para a
+classificação.
+Além disso, veja algumas ferramentas que podem ser úteis
+para explicabilidade de Random Forest:
+1) SHAP (SHapley Additive exPlanations)
+2) LIME (Local Interpretable Model-agnostic Explanations)
+Investiguem!
+ Comandos para Random Forest, em Python
+Se você deseja maior explicabilidade do modelo, veja o
+artigo:
+ Disponível em https://dl.acm.org/doi/10.1145/3236009
+ Otimizadores de hiperparâmetros
+Lembrar de ajustar os hyperparâmetros:
+https://scikit-learn.org/stable/modules/classes.html#module-sklearn.ensemble
+Referências
+Breiman, L. Random Forest. Machine Learning (2001) 45: 5.
+https://doi.org/10.1023/A:1010933404324
+https://link.springer.com/article/10.1023%2FA%3A101093340432
+4
+https://edisciplinas.usp.br/course/view.php?id=78145
+https://www.stat.berkeley.edu/~breiman/RandomForests/cc_hom
+e.htm#workings
+Verificar sobre os parâmetros default
+https://medium.com/turo-engineering/how-not-to-use-random-
+forest-265a19a68576

@@ -1,0 +1,506 @@
+ALGORITMOS DE INDUÇÃO DE ÁRVORES
+COMO CALCULAR O GANHO?
+ Cristiane Neri Nobre
+Árvore de Decisão – Como gerar?
+Até o momento, já aprendemos a avaliar a importância do
+ atributo de forma visual.
+ Mas, como avaliar matematicamente o ganho
+ de cada atributo?
+ Árvore de Decisão – Como gerar?
+Na maioria dos indutores de árvores de decisão,
+as funções de divisão discreta são univariadas, isto é, um
+nó interno é dividido de acordo com o valor de um único
+atributo.
+Consequentemente, o indutor procura o melhor atributo
+sobre o qual realizar a divisão.
+ Árvore de Decisão – Como gerar?
+Entropia é o cálculo do ganho de informação baseado em
+uma medida utilizada na teoria da informação.
+Caracteriza a (im)pureza dos dados: em um conjunto de
+dados, é uma medida da falta de homogeneidade dos
+dados de entrada em relação a sua classificação.
+Dado um conjunto de entrada (S) que pode ter c classes
+distintas, a entropia de S será dada por
+ Árvore de Decisão – Como gerar?
+O Cálculo da entropia vem da Teoria da Informação,
+desenvolvida por Claude Shannon (1948) no artigo
+clássico “A Mathematical Theory of Communication”.
+Assista o vídeo:
+https://youtu.be/rm:BFaNgg4wk
+Veja do artigo:
+https//ieeexplore.ieee.org/document/67
+73024
+Shannon, C. E. (1948). A Mathematical
+Theory of Communication. The Bell System
+Technical Journal, 27, 379–423.
+ Árvore de Decisão – Como gerar?
+ Claude E. Shannon
+ 1916- 2001
+https://ojs.aaai.org/aimagazine/index.php/aimagazine/article/view/1904
+https://en.wikipedia.org/wiki/Claude_Shannon
+ Árvore de Decisão – Como gerar?
+Shannon queria medir a quantidade média de
+informação (ou surpresa) ao observar um evento aleatório
+X
+•Um evento certo (probabilidade 1) não traz informação
+nova → entropia = 0.
+•Um evento com probabilidade baixa traz mais
+informação quando ocorre.
+Exemplo:
+•Saber que “vai chover no deserto do Saara” (evento raro)
+carrega mais informação do que “vai chover na Amazônia”
+(evento esperado).
+ Árvore de Decisão – Como gerar?
+Assim, a equação de entropia vem da Teoria da
+Informação de Shannon, e foi adaptada para medir
+incerteza de classificação em algoritmos como ID3, C4.5
+e CART.
+ Árvore de Decisão – Como gerar?
+Assim, a entropia é uma medida da aleatoridade de uma
+variável
+A física usa o termo entropia para descrever a quantidade
+de desordem associada a um sistema.
+Na teoria da informação, este termo tem uma significado
+semelhante, -- ele mede o grau de desordem de um
+conjunto de dados.
+Escolha de testes de atributos
+ • O esquema usado na aprendizagem de árvores de
+ decisão para selecionar atributos é projetado para
+ minimizar a profundidade da árvore final.
+ • A ideia é escolher o atributo que vá o mais longe
+ possível na tentativa de fornecer uma classificação
+ exata dos exemplos.
+ • Um atributo perfeito divide os exemplos em conjuntos
+ que são todos positivos ou todos negativos.
+ • Clientes – bastante bom
+ • Tipo – realmente inútil
+Escolha de testes de atributos
+• Assim, tudo o que precisamos é de uma medida
+formal de “bastante bom” e “realmente inútil”
+• A função ESCOLHER-ATRIBUTO deverá ter seu valor
+máximo quando o atributo for perfeito, e seu valor
+mínimo quando o atributo for absolutamente inútil.
+• Uma medida apropriada é a quantidade esperada de
+informações fornecidas pelo atributo, que é calculada
+através de uma expressão matemática
+Escolha de testes de atributos
+• Para se entender a noção de informações, pode-se
+pensar como a resposta a uma pergunta. Assim, a
+quantidade de informações contidas na resposta
+depende do conhecimento anterior do indivíduo.
+• Quanto menos se sabe, mais informações são
+fornecidas.
+• A teoria da informação mede o conteúdo de
+informação em bits.
+Escolha de testes de atributos
+• Um bit de informação é suficiente para responder a
+uma pergunta do tipo sim/não sobre a qual não se tem
+nenhuma ideia. Por exemplo se lançarmos uma moeda
+imparcial qual a quantidade de informação necessária?
+Em geral, se cada resposta possível vi têm
+probabilidade P(vi), então o conteúdo de informação “I”
+da resposta real é dado por:
+Resumindo:
+Escolha de testes de atributos
+Ou seja, a equação da entropia, usada em algoritmos
+de árvore de decisão como o ID3, C4.5 e seus
+sucessores, mede o nível de impureza ou incerteza
+em um conjunto de dados. A entropia é derivada da
+teoria da informação e é utilizada para determinar a
+qualidade de uma divisão (split) dos dados em uma
+árvore de decisão.
+Onde:
+• S é o conjunto de dados.
+• n é o número de classes possíveis (ou categorias) no
+conjunto.
+• pi é a proporção de elementos em S pertencentes à classe i
+ Explicação dos termos da equação
+• Pi: Refere-se à probabilidade de um dado elemento pertencer à classe
+ i. Ou seja, é a razão entre a quantidade de elementos da classe i e o
+ total de elementos no conjunto S.
+• Log2(pi): Refere-se ao logaritmo de base 2 da probabilidade pi. A
+ escolha da base 2 está relacionada com o fato de a entropia ser
+ medida em “bits” na teoria da informação.
+ Importante: Se desejar que o ganho e a entropia esteja entre 0
+ e 1, a base do log precisa ser igual ao número de classes.
+• Sinal negativo (-): Garante que a entropia seja um valor positivo, pois
+ os logaritmos de probabilidades são números negativos (quando pi <
+ 1)
+Interpretação da entropia
+•Entropia alta: Quando a entropia é alta, significa que as
+classes estão bem misturadas, ou seja, há uma incerteza
+maior. Isso indica que o conjunto de dados é "impuro" em
+termos de classificação.
+•Entropia baixa: Quando a entropia é baixa, o conjunto de
+dados é mais homogêneo. Se todos os exemplos em S
+pertencem à mesma classe, a entropia será zero,
+representando total pureza e ausência de incerteza.
+Escolha de testes de atributos
+• No caso do lançamento de uma moeda imparcial,
+temos:
+11 1 1 1 1
+I( , ) = − log 2 − log 2
+ 2 2 2 2 2 2
+I (1 , 1) = − 1 (-1) − 1 (-1) Ou seja, um bit de informação
+22 2 2 é suficiente para responder a
+ uma pergunta sim/não sobre a
+I (1 , 1) = 1 + 1 =1 bit qual não se tem nenhuma ideia,
+ 22 2 2 como o lançamento de uma
+ moeda imparcial.
+Escolha de testes de atributos
+• E se a moeda for adulterada (viciada) para dar 99%
+de cara?
+I ( 1 , 99 ) = − 1 log 1 − 99 log 99
+ 100 100 100 2 100 100 2 100
+I ( 1 , 99 ) = − 1 (-0,0145) − 99 (-6,64386)
+100 100 100 100
+I ( 1 , 99 ) = 0,014355+ 0,066439 = 0,080793
+ 100 100
+ Escolha de testes de atributos
+• Ou seja, como a probabilidade de caras tente a 1,
+a informação da resposta tende a 0.
+• Para a aprendizagem em árvores de decisão, a pergunta
+que precisa ser respondida é: para um dado exemplo,
+qual é a classificação correta?
+Escolha de testes de atributos
+• Assim, uma estimativa das probabilidades das respostas
+possíveis antes de quaisquer atributos serem testados é
+dada pelas proporções de exemplos positivos e negativos
+no conjunto de treinamento.
+Vamos supor que o conjunto de treinamento contenha p
+exemplos positivos e n exemplos negativos. Então uma
+estimativa das informações contidas em uma resposta
+correta é:
+pn p p n n
+I ( , ) = − log − log
+p+n p+n p+n 2 p+n p+n 2 p+n
+Escolha de testes de atributos
+ • Um teste em um único atributo A normalmente nos
+ fornecerá algumas informações.
+ • Podemos medir exatamente quantas informações ainda
+ precisaremos depois do teste do atributo.
+ • Qualquer atributo A divide o conjunto de treinamento E em
+ subconjuntos E1, …, Ev de acordo com seus valores para A,
+ onde A pode ter v valores distintos.
+Escolha de testes de atributos
+• Cada subconjunto Ei tem Pi exemplos positivos e ni
+exemplos negativos
+• Assim, se seguirmos ao longo dessa ramificação,
+precisaremos de
+I( p , n )
+ i i
+ p +n p +nii i i
+bits de informação para responder à pergunta.
+Escolha de testes de atributos
+• Um exemplo escolhido ao acaso a partir do conjunto de
+treinamento tem o i-ésimo valor para o atributo com
+probabilidade (pi+ni)/(p+n) e assim, em média, depois de
+testar o atributo A, precisaremos de:
+Entropia(atributo) = v p + n I ( p , n )
+ i i i i
+ 
+ i=1 p + n p + n p + n
+ i i i i
+bits de informação para classificar o exemplo.
+ Escolha de testes de atributos
+• O ganho de informação a partir do teste de atributo é a
+diferença entre o requisito de informação original e o novo
+requisito:
+ ganho(atributo) = Entropia(classe) − Entropia(atributo)
+ • A heurística usada na função ESCOLHER-ATRIBUTO é
+ simplesmente escolher o atributo com o maior ganho.
+Escolha de testes de atributos
+ Voltando aos atributos considerados no problema citado,
+ qual o ganho do atributo cliente?
+Escolha de testes de atributos
+ 1 3 4 6 8 12
+ 2 5 7 9 10 11
+ Cliente
+Nenhum Alguns Cheio
+7 11 1368 4 12
+ 2 5 9 10
+ganho(clientes) = 1− 2 I (0,1) + 4 I (1,0) + 6 I  2 , 4   0,541
+ 12 12 12  6 6
+Importante: Nesta equação, o valor 1 corresponde à entropia da classe: E(1/2;1/2), pois a base possui 6
+exemplos com classe ‘Sim’ e 6 exemplos da classe ‘Não’
+Escolha de testes de atributos
+ E do atributo Tipo?
+Escolha de testes de atributos
+ 13 46 8 12
+ 25 79 10 11
+ Italiano Tipo
+ 6
+Francês 10 Tailandês Hambúrger
+ 1 3 12
+ 5 48 79
+ 2 11
+ganho(tipo) = 1− 2 I (1 , 1) + 2 I (1 , 1) + 4 I  1 , 1  + 4 I  1 , 1  = 0
+ 12 2 2 12 2 2 12  2 2  12  2 2
+Escolha de testes de atributos
+ E do atributo Fome?
+Escolha de testes de atributos
+ 13 46 8 12
+ 25 79 10 11
+ Fome
+ Não
+ Sim 8 12 3
+ 146 5 7 9 11
+ 2 10
+Exemplo Alternativo Bar Sex/Sab fome Cliente Preço Chuva Res Tipo Tempo Conclusão
+ (Vai
+X1 Sim Não Não Sim Alguns RRR Não Sim Francês 0-10
+ esperar)?
+x2 Sim Não Não Sim Cheio R Não Não Tailandês 30-60
+ Não Não Hamburger 0-10 Sim
+x3 Não Sim Não Não Alguns R Sim Não Tailandês 10-30
+ Não Sim Francês >60 Não
+x4 Sim Não Sim Sim Cheio R Sim Sim Italiano 0-10 Sim
+ Sim Não Hamburger 0-10 Sim
+X5 Sim Não Sim Não Cheio RRR Sim Sim Tailandês 0-10 Não
+ Sim Não Hamburger >60 Sim
+X6 Não Sim Não Sim Alguns RR Não Sim Italiano 10-30 Não
+ Não Não Tailandês 0-10 Sim
+X7 Não Sim Não Não Nenhum R Não
+ Não
+X8 Não Não Não Sim Alguns RR Não
+X9 Não Sim Sim Não Cheio R
+X10 Sim Sim Sim Sim Cheio RRR
+X11 Não Não Não Não Nenhum R
+Escolha de testes de atributos
+ 13 46 8 12
+ 25 79 10 11
+ Fome
+ Não
+ Sim 8 12 3
+146 5 7 9 11
+2 10
+ganho( fome) = 1− 7 I ( 5 , 2) + 5 I  1 , 4   0,196
+ 12 7 7 12  5 5
+Escolha de testes de atributos
+ Como medir a habilidade de um dado atributo
+ discriminar as classes?
+ Existem muitas medidas!
+ Todas concordam em dois pontos:
+ – Uma divisão que mantêm as proporções de classes
+ em todas as partições é inútil.
+ – Uma divisão onde em cada partição todos os
+ exemplos são da mesma classe tem utilidade máxima
+Resumindo: como funciona o algoritmo?
+A ideia base do algoritmo é:
+1. Escolher um atributo.
+2. Estender a árvore adicionando um ramo para cada
+ valor do atributo.
+3. Passar os exemplos para as folhas (tendo em conta o
+ valor do atributo escolhido)
+4. Para cada folha
+ 1. Se todos os exemplos são da mesma classe, associar essa classe à folha 2.
+ 2. Senão repetir os passos 1 a 4
+Exemplo
+ Considerando que o atributo Cliente estará na raiz da árvore
+ (aquele que teve o maior ganho), que atributos estarão no
+ segundo nível da árvore?
+1 3 4 6 8 12
+2 5 7 9 10 11
+ Cliente
+Nenhum Alguns Cheio
+7 11 1368 4 12
+ 2 5 9 10
+Exemplo
+ Em geral, depois que o primeiro teste de atributo separar os
+ exemplos, cada resultado é um novo problema de
+ aprendizagem de árvore de decisão em si, com menos
+ exemplos e um atributo a menos.
+Exemplo
+Neste caso, quando o atributo Cliente = Nenhum, todas as instâncias
+tem a mesma classificação, todos são iguais a Não.
+Quando o atributo Cliente = Alguns, todas as instâncias tem a mesma
+classificação, todos são iguais a Sim.
+Mas quando o atributo Cliente = Cheio, temos 6 instâncias, sendo 2 da
+classe Sim e 4 da classe Não. Ou seja, neste caso, precisamos descobrir
+um outro atributo que possa separar estes exemplos.
+Exemplo
+E como fazer isso? O processo de geração da árvore
+continuará apenas com estes 6 exemplos e precisaremos
+descobrir um novo atributo para ajudar a separá-los.
+Exemplo
+Ou seja, na ramificação da árvore para o tipo
+Cliente=Cheio, terão apenas 6 instâncias
+E agora executaremos o algoritmo considerando apenas
+ estas 6 instâncias. Será que o novo atributo será fome?
+ Preço? Chuva?
+ Façam os cálculos e descubra!
+ Árvore de Decisão – Algoritmo ID3
+ O Algoritmo ID3 (Iterative Dichotomiser 3)*
+ • Foi criado por Ross Quinlan, na
+ universidade de Sydnei, Austrália em 1979
+ • O ID3 usa entropia e ganho de informação
+ para construir a árvore de decisão
+ • É o algoritmo pioneiro em indução de
+ árvore de decisão.
+ • É recursivo, baseado em busca gulosa,
+ onde procura um conjunto de atributos
+ que melhor dividem os exemplos
+ (amostras), gerando sub-árvores.
+* O nome deriva do fato de que o algoritmo construiu árvores de decisão dividindo iterativamente um conjuntos de dados até que eles
+possam ser classificados em uma de duas categorias distintas. Versões posteriores permitiram a classificação em mais de duas
+categorias, mas o “D" persistiu no nome.
+Algoritmo ID3
+Algoritmo ID3
+ https://link.springer.com/article/10.1007/BF00116251
+ Algoritmo ID3
+Limitações do Algoritmo ID3
+• A principal limitação do ID3 é que ele só lida com
+ atributos discretos, não sendo possível apresentar a ele
+ um conjunto de dados com atributos contínuos. Neste
+ caso, os atributos devem ser discretizados.
+• O ID3 também não apresenta nenhuma forma de tratar
+ valores desconhecidos, ou seja, todos os exemplos do
+ conjunto de treinamento deve ter valores conhecidos
+ para todos os seus atributos
+ Algoritmo ID3
+Limitações do Algoritmo ID3
+• O algoritmo também não lida com nenhum mecanismo
+ pós-poda, o que poderia amenizar em árvores mais
+ complexas
+Algoritmo C4.5
+C4.5 é uma extensão do algoritmo ID3, ambos desenvolvido
+por Ross Quinlan.
+Ele apresenta uma série de melhorias do algoritmo ID3.
+Algoritmo C4.5
+Algumas destas melhorias do algoritmo C4.5 em relação ao
+ID3 são:
+• Lidar com atributos contínuos e discretos. No intuito de lidar com
+ atributos contínuos, o algoritmo C4.5 cria um valor limiar e então
+ particiona o conjunto de dados em dois subconjuntos dos quais
+ um contém valores de atributos maiores do que aquele valor
+ limiar e o outro conjunto contém valores menores ou iguais
+ aquele valor limiar.
+• Lidar com dados de treinamento com atributos incompletos. O
+ algoritmo C4.5 permite que atributos sejam rotulados como ?
+ para casos onde os valores não estejam presentes. Valores de
+ atributos que não estejam presentes não são utilizados em
+ cálculos de entropia ou ganho de informação.
+Algoritmo C4.5
+Algumas destas melhorias do algoritmo C4.5 em relação ao
+ID3 são:
+•Poda de árvores após a criação. O algoritmo C4.5 retrocede pela
+árvore quando esta é criada e tenta remover ramificações que não
+ajudam no processo de decisão e substitui estes ramos por nós
+folha.
+•Implementa o ‘gain ratio’ ao invés do ‘ganho de informação’
+tradicional.
+ A Razão de Ganho foi introduzida no algoritmo C4.5 para
+ corrigir o viés do Ganho de Informação. Ela normaliza o Ganho de
+ Informação ao considerar o número de valores distintos de um
+ atributo.
+Razão de ganho (gain ratio)
+Uma vez que cada código ID é único, particionando o
+conjunto de treinamento nos valores deste atributo
+levará a um grande número de subconjuntos, cada
+um contendo somente um caso
+Como todos os subconjuntos (de 1 elemento)
+necessariamente contêm exemplos de uma mesma
+classe, info(ID,T)=0, assim o ganho de informação
+deste atributo será máximo
+Razão de ganho (gain ratio)
+Razão de ganho (gain ratio)
+Para solucionar esta situação, em analogia à definição de
+info(T), vamos definir a informação potencial gerada pela
+partição de T em r subconjuntos
+ A razão de ganho é definida como:
+ A razão de ganho expressa a proporção de informação
+ gerada pela partição que é útil, ou seja, que aparenta
+ ser útil para a classificação
+Razão de ganho (gain ratio)
+Usando o exemplo anterior para o atributo Clientes que
+produz três subconjuntos com 2, 4 e 6 exemplos,
+respectivamente
+ganho(clientes ) = 1 − 2 I (0,1) + 4 I (1,0) + 6 I  2 , 4   0,541 bits
+ 12 12 12  6 6
+split − inf o(Clientes,T ) = − 2 log 2 − 4 log 4 − 6 log 6
+ 12 2 12 12 2 12 12 2 12
+split − inf o(Clientes,T ) = − 2 (−2.58496) − 4 (−1.58496) − 6 (−1) = 1.459
+ 12 12 12
+Razão de ganho (gain ratio)
+ Para este teste, cujo ganho é gain(Clientes,T)
+ =0.541 (mesmo valor anterior), a razão de
+ ganho é:
+ gain-ratio(Clientes,T) = 0,541 = 0,37
+ 1,459
+ Assim, a razão de ganho expressa a proporção
+ de informação gerada pela partição que é útil, ou
+ seja, que aparenta ser útil para a classificação
+Como o C4.5 lida com valores numéricos?
+ Um teste em um atributo numérico produz uma partição
+ binária do conjunto de exemplos:
+ o Exemplos onde valor_do_atributo <= ponto_referência
+ o Exemplos onde valor_do_atributo > ponto_referência
+Como o C4.5 lida com valores numéricos?
+ Escolha do ponto de referência:
+ • Ordenar os exemplos por ordem crescente dos valores do
+ atributo numérico
+ • Qualquer ponto intermediário entre dois valores diferentes e
+ consecutivos dos valores observados no conjunto de treino
+ pode ser utilizado como possível ponto de referência.
+ ✓ É usual considerar o valor médio entre dois valores diferentes e
+ consecutivos.
+ ✓ Soma-se o valor menor e o valor maior e divide-se pelo número de
+ classes
+ • Fayyard e Irani (1993) mostram que de todos os possíveis
+ pontos de referência aqueles que maximizam o ganho de
+ informação separam dois exemplos de classes diferentes.
+Como lidar com atributos numéricos em
+algoritmos de árvore de decisão?
+ Veja o artigo que está no CANVAS:
+ A_comparative_study_of_decision_tree_ID3_and_C4.5.pdf
+Como utilizar o algoritmo de árvore de
+decisão em Python?
+ Rode os códigos sobre árvore que estão no CANVAS e
+ façam as listas de exercícios
+Algoritmo de árvore de decisão CART
+O algoritmo de árvore de decisão CART (Classification and
+Regression Trees) foi desenvolvido por Leo Breiman,
+juntamente com Jerome Friedman, Richard Olshen, e Charles
+Stone. Eles introduziram o algoritmo no livro clássico
+"Classification and Regression Trees" publicado em 1984.
+O algoritmo CART é amplamente utilizado tanto para tarefas de
+classificação quanto para regressão. Uma de suas principais
+características é que ele constrói árvores binárias (onde cada
+nó interno tem exatamente dois filhos) e utiliza critérios como o
+índice de Gini (para classificação) ou o erro quadrático médio
+(para regressão) para determinar as divisões nos nós.
+Algoritmo de árvore de decisão CART
+ 1928-2005
+Comparação entre os algoritmos ID3,
+C4.5 e CART:
+CART:
+ Vamos analisar o índice de gini para o atributo cliente da base
+ de dados ‘restaurante’.
+ Para isto, o CART sempre divide os atributos em 2 partições:
+ Então, ele testa splits como:
+ 1. {Alguns} vs {Nenhum, Cheio}
+ 2. {Nenhum} vs {Alguns, Cheio}
+ 3. {Cheio} vs {Alguns, Nenhum}
+ 4. {Alguns, Nenhum} vs {Cheio}
+ 5. {Alguns, Cheio} vs {Nenhum}
+ 6. etc
+CART:
+ Como seria o cálculo para cada partição?
+CART:
+ E por quê existe este 1 – somatório na equação do Gini?
+CART:
+ Exemplo
+CART:
+ Ou seja, o “1 −” inverte a lógica: o que antes media pureza passa a medir impureza —
+ exatamente o que queremos otimizar em uma árvore de decisão (minimizar impureza nos nós).
+CART:
+ Como seria o cálculo para cada partição?
+ Portanto, o atributo Cliente será a raiz com qualquer uma das
+ duas primeiras opções válidas
+CART:
+ Agora calcule o ganho dos outros atributos, usando o Gini
+Referências
+https://www.sciencedirect.com/boo https://www.taylorfrancis.com/books/mono/1
+k/9780080500584/c4-5#book- 0.1201/9781315139470/classification-
+description regression-trees-leo-breiman-jerome-
+ friedman-olshen-charles-stone

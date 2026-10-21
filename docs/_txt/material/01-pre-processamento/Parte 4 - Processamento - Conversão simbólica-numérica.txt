@@ -1,0 +1,153 @@
+TRANSFORMAÇÃO DE DADOS
+ CONVERSÃO SIMBÓLICO-NUMÉRICO
+ Cristiane Neri Nobre
+Conversão simbólico-Numérico
+ o Técnicas como redes neurais artificias, SVM e vários
+ algoritmos de agrupamento lidam apenas com dados
+ numéricos
+ o E o que podemos fazer quando temos dados
+ simbólicos (nominais/categóricos)?
+ o Precisamos transformar os valores para valores numéricos!
+ E como podemos fazer isso?
+Conversão simbólico-Numérico
+ Caso 1:
+ Quando o atributo é do tipo simbólico e assume apenas
+ dois valores, se os valores denotam a presença ou ausência
+ de uma característica podemos utilizar um dígito binário
+ Exemplos
+ Gênero:
+ Masculino – 0
+ Feminino – 1
+ Tumor:
+ Maligno – 0
+ Benigno – 1
+Conversão simbólico-Numérico
+ Caso 2:
+ Quando o atributo é do tipo simbólico e assume mais de dois
+ valores, a técnica utilizada na conversão depende de o atributo
+ ser nominal ou ordinal.
+ Se não houver uma relação de ordem entre os valores do
+ atributo, a inexistência de uma relação de ordem deve
+ continuar para os valores numéricos gerados.
+ Ou seja, a diferença entre quaisquer dois valores numéricos
+ deve ser a mesma.
+ Uma forma de conseguir isso é codificar cada valor nominal
+ por uma sequência de c bits, em que c é igual ao número de
+ possíveis valores ou categorias.
+Conversão simbólico-Numérico
+ Na codificação 1-de-c, também denominada canônica ou
+ topológica, cada sequência possui apenas um bit com o valor 1
+ e os demais com o valor zero.
+ A diferença entre as sequências é definida pela posição que o
+ valor 1 ocupa nelas.
+ Para definir a diferença entre dois valores, pode ser utilizada a
+ distância de Hamming.
+Conversão simbólico-Numérico
+ Nesta codificação, cada posição da sequência binária
+ corresponde a um possível valor do atributo nominal.
+ Por exemplo, se a sequência binária possui 4 bits, o primeiro
+ corresponde ao primeiro valor, o segundo bit ao segundo valor
+ e assim por diante.
+ Como apenas um dos bits pode assumir o valor 1, o bit que
+ assumir esse valor sinaliza a presença do valor nominal
+ correspondente àquele bit.
+Conversão simbólico-Numérico
+ Exemplo de codificação 1-de-c
+ Observem que são utilizados 6 bits! Não é um número inteiro!
+ Isso é o chamo de binarizar o atributo.
+ O que significa isso?
+ Que um único atributo com 6 opções de resposta vão virar 6 entradas
+ na base de dados.
+Conversão simbólico-Numérico
+É como se você enxergasse:
+Azul Amarelo Verde Preto Marrom Branco
+ 1 0 0 0 0 0
+ 0 1 0 0 0 0
+ 0 0 1 0 0 0
+ 0 0 0 1 0 0
+ 0 0 0 0 1 0
+ 0 0 0 0 0 1
+Observem que são utilizados 6 bits! Não é um número inteiro!
+Isso é o que chamo de binarizar o atributo.
+O que significa isso?
+ Que um único atributo com 6 opções de resposta vão virar 6 entradas
+ na base de dados.
+Conversão simbólico-Numérico
+É como se você enxergasse:
+Azul Amarelo Verde Preto Marrom Branco
+ 1 0 0 0 0 0
+ 0 1 0 0 0 0
+ 0 0 1 0 0 0
+ 0 0 0 1 0 0
+ 0 0 0 0 1 0
+ 0 0 0 0 0 1
+E veja que a distância de Hamming entre as instâncias é sempre 2.
+Conversão simbólico-Numérico
+Onde mais podemos utilizar esta codificação?
+Em vários outros contextos!
+Exemplo:
+Onde você nasceu?
+Em casa
+no hospital
+na rua
+na BR Instância Em casa No Hosp Na rua Na BR
+ 0 0 0
+ 1 1 1 0 0
+ 0 1 0
+ 2 0 0 0 1
+ 3 0
+ 4 0
+Conversão simbólico-Numérico
+ Exemplo:
+ Qual o seu curso?
+ CC
+ SI
+ Jogos
+ ES
+Instância CC SI Jogos ES
+1 1 0 0 0
+2 0 1 0 0
+3 0 0 1 0
+4 0 0 0 1
+Conversão simbólico-Numérico
+ Veja que isso é interessante apenas para atributos com
+ poucas opções de resposta.
+ Imagina se você tiver que criar uma codificação desta
+ para representar 193 países?
+ Isso não seria uma boa opção!
+Conversão simbólico-Numérico
+ Uma alternativa é a representação dos possíveis valores
+ nominais por um conjunto de pseudoatributos.
+ Os valores dos pseudoatributos podem ser do tipo
+ binário, inteiro ou real
+ Pseudoatributo e seus possíveis valores
+Conversão simbólico-Numérico
+ Onde mais podemos ver este tipo de atributos?
+ 1) Qual a cidade onde você mora?
+ 2) Qual o curso você faz (com muitas opções de
+ resposta)?
+ 3) Qual o tipo de droga você já utilizou?
+Conversão simbólico-Numérico
+ Caso 3:
+ Quando existe uma relação de ordem, o atributo é do tipo
+ ordinal, e a codificação deve preservar essa relação.
+ Para isso, deve ser utilizada uma codificação em que a ordem
+ dos valores esteja clara.
+Conversão simbólico-Numérico
+ Quando o valor numérico é um número inteiro ou real,
+ essa transformação é simples e direta: basta ordenar os
+ valores categóricos ordinais e codificar cada valor de acordo
+ com sua posição na ordem:
+Conversão simbólico-Numérico
+ Se for necessário converter valores ordinais em valores
+ binários, pode ser utilizado o código cinza ou o código
+ termômetro.
+Codificação em Python
+ Veja os comandos One-Hot Encoding e Label Encoding na codificação
+ da base de dados Restaurante, vista em sala e que está no CANVAS.
+ AD_Restaurante_codifica_treina_e_avalia.ipynb
+ Veja também o exemplo sobre o Titanic que está no CANVAS:
+ AD_RF_Titanic_processamento.ipynb
+Referências:
+ • Capítulo 3 do livro (Seção
+ 3.6.1)
