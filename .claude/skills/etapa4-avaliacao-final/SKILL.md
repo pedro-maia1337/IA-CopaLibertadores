@@ -1,37 +1,41 @@
 ---
 name: etapa4-avaliacao-final
-description: Etapa 4 (entrega 28/11) — avaliação única do modelo congelado no KDDTest+ (F1-macro oficial), relatório por classe, matriz de confusão, análise de erros por ataque inédito e explicabilidade do melhor modelo (importância nativa, permutação, SHAP, árvore substituta). Use ao montar notebooks/04_avaliacao_final.ipynb ou ao interpretar/explicar o modelo final.
+description: Etapa 4 (entrega 28/11) — gerar uma única vez a submissão do modelo congelado para teste_sem_rotulo.csv, estimar o desempenho por OOF no treino (o teste não tem rótulos) e fazer a explicabilidade do melhor modelo (importância nativa, permutação, SHAP, árvore substituta). Use ao montar notebooks/04_avaliacao_final.ipynb ou ao interpretar/explicar o modelo final.
 ---
 
-# Etapa 4 — Avaliação final e explicabilidade
+# Etapa 4 — Submissão final e explicabilidade
 
-Entregável: `notebooks/04_avaliacao_final.ipynb` (completo e reproduzível do início ao fim). Pré-requisito: `results/final_config.json` congelado na Etapa 3. Se não existir, **pare** e volte à Etapa 3.
+Entregáveis: `notebooks/04_avaliacao_final.ipynb` (completo e reproduzível do início ao fim) e `results/submissao.csv`. Pré-requisito: `results/final_config.json` congelado na Etapa 3. Se não existir, **pare** e volte à Etapa 3.
+
+**O teste não tem rótulos.** Quem calcula o F1-macro é a professora. Não existe matriz de confusão no teste nem análise de erros no teste: toda métrica deste notebook vem de previsões out-of-fold do treino, e deve ser apresentada como **estimativa**.
 
 ## Protocolo (nesta ordem)
-1. Ler `final_config.json`; montar o pipeline com `build_pipeline(model, **pipeline_params)` (envolver em `WeightedDecisionClassifier` se `decision_weights`).
-2. Treinar no **KDDTrain+ completo** (sem CV). Salvar com `joblib.dump(..., config.MODELS / "final.joblib")`.
-3. Só então `X_te, y_te, attack_te = load_test(final_evaluation=True)` — uma vez, sem filtrar linhas.
-4. `y_pred = model.predict(X_te)`; `final_report(y_te, y_pred, save_as="matriz_confusao_teste.png")` → F1-macro oficial, acurácia balanceada, precision/recall/F1 por classe, matriz absoluta e normalizada.
-5. Tabela CV-treino × teste por classe (mostra o *gap* de generalização; esperado e explicável).
-6. **Análise de erros por ataque**: `pd.crosstab(attack_te, y_pred)` + recall por ataque; separar ataques conhecidos × inéditos (lista em `nslkdd-base`). Destaques esperados: `snmpgetattack`/`snmpguess` confundidos com normal (54 linhas idênticas a normal), `httptunnel`, `mscan`, `apache2`, `processtable`.
-7. Não reprocessar nem retunar depois de ver o teste. Se surgir ideia, ela vai para "trabalhos futuros" no relatório. Se o teste for executado de novo (ex.: bug), registrar no notebook o motivo e manter o mesmo modelo.
+1. Ler `final_config.json`; montar o pipeline com `build_pipeline(model, **pipeline_params)` e envolver em `ThresholdClassifier` (aprende o limiar via OOF agrupado no treino).
+2. Treinar no **`treino.csv` completo**. Salvar com `joblib.dump(..., config.MODELS / "final.joblib")`.
+3. Estimativa honesta: `cross_val_proba` + limiar + `validation_report` nas linhas de `evaluation_mask`. Mostrar também `f1_macro_noisy`, explicando por que ele não estima o teste (conflitos existem só por construção no treino).
+4. Só então `X_te, ids = load_test(final_evaluation=True)`, uma vez, sem filtrar nem reordenar linhas.
+5. `y_pred = model.predict(X_te)`; `write_submission(ids, y_pred)` valida ids, ordem e rótulos e grava `results/submissao.csv`.
+6. Verificações sem usar rótulos: 24.333 linhas, sem nulos, proporção prevista de `anomaly` (só para detectar erro grosseiro; **não** ajustar o limiar por ela).
+7. Não reprocessar nem retunar depois de gerar a submissão. Se surgir ideia, ela vai para "trabalhos futuros". Se a submissão precisar ser refeita (ex.: bug), registrar o motivo no notebook e manter o mesmo modelo.
 
 ## Explicabilidade do melhor modelo (requisito 7)
 ```python
 from nslkdd.explain import model_importances, permutation_importances, shap_values, surrogate_rules
-model_importances(model, X_tr).head(20)                  # global, rápida (árvores)
-permutation_importances(model, X_tr, y_tr)               # global, atributos ORIGINAIS, métrica f1_macro
-sv, Xt = shap_values(model, X_tr, sample=2000)           # TreeExplainer; sv[..., k] para a classe k
+model_importances(model, X_tr).head(20)                  # nativa; HGB não tem, use permutação
+permutation_importances(model, X_tr, y_tr)               # atributos ORIGINAIS, métrica f1_macro
+sv, Xt = shap_values(model, X_tr, sample=2000)           # TreeExplainer (XGB/RF)
 rules, fid = surrogate_rules(model, X_tr, max_depth=4)   # regras legíveis + fidelidade
 ```
-- **Global**: barras de importância + `shap.plots.beeswarm(sv[:, :, k])` por classe para R2L e U2R (as que importam). Relacionar com o domínio: DoS ↔ `serror_rate`/`count`/`flag_S0`; Probe ↔ `diff_srv_rate`/`dst_host_*`; R2L ↔ `service` ftp/telnet, `num_failed_logins`, `dst_bytes`; U2R ↔ `root_shell`, `num_file_creations`, `hot`.
-- **Local**: `shap.plots.waterfall(sv[i, :, k])` para 1 acerto e 1 erro de R2L/U2R do teste (explicar *por que* errou é ótimo material de discussão).
-- **Regras**: árvore substituta (profundidade 3–4) com fidelidade reportada; para limiares legíveis, explicar que valores estão na escala transformada (log1p + padronização) ou treinar a substituta sobre atributos originais.
-- Por padrão use amostras do treino para SHAP/permutação (explicar o modelo); explicações sobre amostras do teste são permitidas por serem só descritivas (não alteram o modelo).
-- Se o modelo final for PCA-based, a explicabilidade fica em componentes — por isso a Etapa 2 recomenda seleção de atributos em vez de PCA.
+- Se o modelo final for um voto de vários modelos, explique o membro mais forte ou use a permutação sobre o ensemble inteiro.
+- **Global**: barras de importância + `shap.plots.beeswarm` da classe `anomaly`. Relacionar com o domínio: `flag`, `serror_rate`, `same_srv_rate` e `service` costumam dominar.
+- **Local**: `shap.plots.waterfall` para 1 acerto e 1 erro da validação OOF.
+- **Regras**: árvore substituta (profundidade 3–4) com fidelidade reportada.
+- **Prova de que o vazamento saiu:** nenhuma das colunas de `config.LEAKY_COLUMNS` pode aparecer entre os atributos explicados. Mostre isso, é um ótimo argumento metodológico.
+- Use amostras do treino para SHAP/permutação. Não há rótulos no teste, e explicar o modelo não exige o teste.
 
 ## Discussão dos resultados (vai para o relatório e a apresentação)
-- Posição esperada em relação à CV e por quê (mudança de distribuição, ataques inéditos, R2L 0,8%→12,2%).
+- Por que o F1 bruto parou em ~0,88 e o F1 sobre linhas limpas é a medida correta.
+- Custo de abrir mão das colunas de vazamento (quantificado na EDA), e por que isso é o correto: um detector que depende da triagem do SOC detecta o que já foi detectado.
 - Quais escolhas de pré-processamento mais contribuíram (puxar da tabela da Etapa 2/3).
-- Limitações: rótulos inconsistentes no teste, U2R com 52 exemplos, SMOTE em dummies, custo computacional.
-- Trabalhos futuros (ideias surgidas após ver o teste entram aqui, não no modelo).
+- Limitações: o rótulo verdadeiro dos conflitos é desconhecido, o ruído pode existir também onde não há cópia para denunciá-lo, SMOTE em dummies, ~40% de ausentes em `src_bytes`.
+- Trabalhos futuros (ideias surgidas após a submissão entram aqui, não no modelo).

@@ -1,8 +1,10 @@
-"""Utilitários do trabalho NSL-KDD (detecção de intrusão, F1-macro em 5 classes)."""
+"""Utilitários do trabalho de detecção de intrusão (NSL-KDD binário, F1-macro)."""
 from . import config
-from .data import load_test, load_train, load_train_frame
-from .evaluation import ExperimentLog, final_report, make_cv
+from .data import load_test, load_train, load_train_frame, write_submission
+from .decision import ThresholdClassifier, cross_val_proba
+from .evaluation import ExperimentLog, validation_report
 from .preprocessing import build_pipeline
 
-__all__ = ["config", "load_train", "load_train_frame", "load_test", "build_pipeline",
-           "ExperimentLog", "make_cv", "final_report"]
+__all__ = ["config", "load_train", "load_train_frame", "load_test", "write_submission",
+           "build_pipeline", "ExperimentLog", "ThresholdClassifier", "cross_val_proba",
+           "validation_report"]

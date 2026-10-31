@@ -1,54 +1,79 @@
-"""Ajuste da regra de decisão para F1-macro usando apenas previsões out-of-fold do treino.
+"""Ajuste do limiar de decisão para F1-macro, usando só previsões out-of-fold do treino.
 
-O classificador estima P(classe|x); multiplicar cada probabilidade por um peso
-w_c e escolher argmax(w * p) desloca a fronteira a favor das classes raras.
-Os pesos são buscados em probabilidades out-of-fold (cross_val_predict no
-KDDTrain+), nunca no KDDTest+.
+Em problema binário desbalanceado, 0,5 raramente é o melhor corte para F1-macro. O limiar
+é buscado em probabilidades out-of-fold e nunca no teste.
 """
 import numpy as np
+from joblib import Parallel, delayed
 from sklearn.base import BaseEstimator, ClassifierMixin, clone
-from sklearn.metrics import f1_score
-from sklearn.model_selection import cross_val_predict
+from sklearn.model_selection import StratifiedGroupKFold
+
+from . import config
+from .data import duplicate_groups, evaluation_mask
+
+GRID = np.linspace(0.01, 0.99, 99)
 
 
-def fit_class_weights(proba, y, classes, grid=np.geomspace(0.25, 64, 25), n_rounds=3):
-    """Busca coordenada a coordenada pelos pesos que maximizam F1-macro."""
-    y = np.asarray(y)
-    w = np.ones(len(classes))
-
-    def score(weights):
-        return f1_score(y, classes[np.argmax(proba * weights, axis=1)], average="macro")
-
-    best = score(w)
-    for _ in range(n_rounds):
-        for j in range(len(classes)):
-            for g in grid:
-                trial = w.copy()
-                trial[j] = g
-                s = score(trial)
-                if s > best + 1e-6:
-                    best, w = s, trial
-    return w, best
+def macro_f1_curve(proba, is_positive, thresholds=GRID):
+    """F1-macro binário em cada limiar, vetorizado (sem chamar f1_score na grade)."""
+    pos = np.sort(proba[is_positive])
+    neg = np.sort(proba[~is_positive])
+    fn = np.searchsorted(pos, thresholds, side="left")
+    tn = np.searchsorted(neg, thresholds, side="left")
+    tp, fp = len(pos) - fn, len(neg) - tn
+    return (tp / np.maximum(2 * tp + fp + fn, 1) + tn / np.maximum(2 * tn + fp + fn, 1))
 
 
-class WeightedDecisionClassifier(BaseEstimator, ClassifierMixin):
-    """Envolve um pipeline e aplica pesos de decisão aprendidos via OOF no treino."""
+def best_threshold(proba, is_positive, thresholds=GRID, window=5):
+    """Limiar de maior F1-macro; a média móvel evita escolher um pico isolado da curva."""
+    curve = macro_f1_curve(proba, is_positive, thresholds)
+    smooth = np.convolve(curve, np.ones(window) / window, mode="same")
+    margin = window // 2
+    return float(thresholds[margin + int(np.argmax(smooth[margin:-margin]))])
 
-    def __init__(self, estimator, cv=5, n_jobs=-1):
+
+def positive_proba(model, X):
+    return model.predict_proba(X)[:, list(model.classes_).index(config.POSITIVE)]
+
+
+def _fit_predict(pipe, X, y, train, val):
+    model = clone(pipe).fit(X.iloc[train], y.iloc[train])
+    return val, positive_proba(model, X.iloc[val])
+
+
+def cross_val_proba(pipe, X, y, groups, n_splits=5, seed=config.RANDOM_STATE, n_jobs=-1):
+    """P(anomaly) out-of-fold e o fold de cada linha. Cópias nunca são separadas."""
+    cv = StratifiedGroupKFold(n_splits, shuffle=True, random_state=seed)
+    splits = list(cv.split(X, y, groups))
+    done = Parallel(n_jobs=n_jobs)(delayed(_fit_predict)(pipe, X, y, tr, va) for tr, va in splits)
+    proba, fold = np.zeros(len(X)), np.zeros(len(X), dtype=int)
+    for k, (val, p) in enumerate(done):
+        proba[val], fold[val] = p, k
+    return proba, fold
+
+
+class ThresholdClassifier(BaseEstimator, ClassifierMixin):
+    """Envolve um pipeline e aprende o limiar de decisão via OOF no próprio conjunto de ajuste."""
+
+    def __init__(self, estimator, n_splits=5, n_jobs=-1):
         self.estimator = estimator
-        self.cv = cv
+        self.n_splits = n_splits
         self.n_jobs = n_jobs
 
     def fit(self, X, y):
-        oof = cross_val_predict(clone(self.estimator), X, y, cv=self.cv,
-                                method="predict_proba", n_jobs=self.n_jobs)
+        y = y.reset_index(drop=True)
+        X = X.reset_index(drop=True)
+        groups = duplicate_groups(X)
+        oof, _ = cross_val_proba(self.estimator, X, y, groups, self.n_splits, n_jobs=self.n_jobs)
+        mask = evaluation_mask(groups, y)
+        self.threshold_ = best_threshold(oof[mask], y.to_numpy()[mask] == config.POSITIVE)
         self.estimator_ = clone(self.estimator).fit(X, y)
         self.classes_ = self.estimator_.classes_
-        self.weights_, self.oof_f1_ = fit_class_weights(oof, y, self.classes_)
         return self
 
     def predict_proba(self, X):
         return self.estimator_.predict_proba(X)
 
     def predict(self, X):
-        return self.classes_[np.argmax(self.predict_proba(X) * self.weights_, axis=1)]
+        negative = next(c for c in self.classes_ if c != config.POSITIVE)
+        return np.where(positive_proba(self, X) >= self.threshold_, config.POSITIVE, negative)

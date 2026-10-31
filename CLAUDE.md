@@ -1,10 +1,14 @@
-# Trabalho em Competição — Detecção de Intrusão (NSL-KDD)
+# Trabalho em Competição — Detecção de Intrusão (NSL-KDD, base atualizada)
 
 Disciplina de Inteligência Artificial (Profa. Cristiane Neri Nobre). Enunciado completo:
 `docs/enunciado/Enunciado_Trabalho_Competicao_IA.pdf` (texto pesquisável em `docs/_txt/`).
 
+A base foi trocada em 31/10/2026 e o enunciado permaneceu o mesmo. Onde o enunciado cita KDDTrain+/KDDTest+,
+leia `data/new-database/treino.csv` e `data/new-database/teste_sem_rotulo.csv`.
+
 ## Objetivo e nota
-- Classificação em **5 classes** (`normal`, `DoS`, `Probe`, `R2L`, `U2R`), métrica oficial **F1-macro no KDDTest+**.
+- Classificação **binária** (`normal`, `anomaly`), métrica oficial **F1-macro no teste**, calculada pela professora.
+- O teste não tem rótulos: o entregável é `results/submissao.csv` (`id,class_prevista`), no formato de `modelo_de_submissao.csv`.
 - Pesos: desempenho no ranking 40% · qualidade metodológica (sem vazamento) 30% · tabela comparativa 20% · clareza 10%.
 - Vazamento derruba fortemente os 30% metodológicos, independentemente do ranking.
 
@@ -14,35 +18,39 @@ Disciplina de Inteligência Artificial (Profa. Cristiane Neri Nobre). Enunciado 
 | 1. Análise exploratória | `notebooks/01_eda.ipynb` | 24/10 | `etapa1-eda` |
 | 2. Pré-processamento | `notebooks/02_preprocessamento.ipynb` | 07/11 | `etapa2-preprocessamento` |
 | 3. Modelos + CV | `notebooks/03_modelagem.ipynb` | 21/11 | `etapa3-modelagem` |
-| 4. Teste final + XAI + relatório | `notebooks/04_avaliacao_final.ipynb`, `reports/` | 28/11 | `etapa4-avaliacao-final`, `relatorio-e-apresentacao` |
+| 4. Submissão + XAI + relatório | `notebooks/04_avaliacao_final.ipynb`, `results/submissao.csv`, `reports/` | 28/11 | `etapa4-avaliacao-final`, `relatorio-e-apresentacao` |
 
 Skills transversais: `nslkdd-base` (fatos da base), `anti-vazamento` (sempre que houver fit/transform/reamostragem/teste), `notebook-padrao` (como criar e executar notebooks).
 
 ## Regras inegociáveis
-1. **KDDTest+ só no notebook 04, uma única vez**, depois de congelar a configuração em `results/final_config.json`. `nslkdd.load_test()` exige `final_evaluation=True`.
-2. Split fixo: nunca concatenar treino+teste, nunca `train_test_split` sobre o teste, nunca re-embaralhar a divisão oficial.
-3. Todo passo que aprende algo (codificação, escala, seleção, PCA, balanceamento, remoção de duplicatas) vai **dentro** de `build_pipeline(...)` (imblearn `Pipeline`), para ser ajustado só nos folds de treino da CV.
-4. `difficulty` nunca é atributo preditivo (metadado do rótulo). `attack` só é usado para mapear a classe e como grupo de CV.
-5. Nunca remover/alterar linhas do KDDTest+ (duplicatas, inconsistências ou outliers do teste ficam como estão).
-6. Seleção de modelo e hiperparâmetros por **F1-macro de CV no treino** (`ExperimentLog`). Acurácia nunca é critério principal.
+1. **O teste só entra no notebook 04, uma única vez**, depois de congelar a configuração em `results/final_config.json`. `load_test()` exige `final_evaluation=True`.
+2. Split fixo: nunca concatenar treino+teste, nunca usar o teste para ajustar nada (nem pseudo-rótulos, nem validação adversária).
+3. Todo passo que aprende algo (imputação, codificação, escala, seleção, PCA, balanceamento, remoção de duplicatas) vai **dentro** de `build_pipeline(...)` (imblearn `Pipeline`), para ser ajustado só nos folds de treino da CV.
+4. **Só os 41 atributos de rede (`config.FEATURES`) são preditores.** `score_ids_legado`, `tipo_alerta_soc` e `tempo_resposta_analista_min` são vazamento (cópias ruidosas do rótulo, posteriores ao evento) e nunca entram no modelo, mesmo estando no teste. As 5 derivadas (`src_bytes_kb`, `dst_bytes_kb`, `total_bytes`, `same_srv_pct`, `protocolo_cod`) são cópias exatas e também ficam de fora.
+5. Nunca remover, alterar ou reordenar linhas do teste. Só valem transformações por linha, sem parâmetros aprendidos no teste.
+6. Seleção de modelo e hiperparâmetros por **F1-macro de CV no treino** (`ExperimentLog`), com CV agrupada por duplicata. Acurácia nunca é critério principal.
 7. Toda decisão de pré-processamento precisa de justificativa técnica registrada (markdown no notebook) — ela vira texto do relatório.
+8. **`data/raw/` (NSL-KDD original) não pode ser usada:** contém as linhas do teste com os rótulos. Cruzar as bases para recuperar rótulos é fraude; usá-la como treino extra também vaza o teste.
 
 ## Ambiente
 - Python: `.venv/Scripts/python` (Windows). Kernel Jupyter: `nslkdd`. Pacote local editável: `import nslkdd`.
 - Testes: `.venv/Scripts/python -m pytest`. Auditoria: `.venv/Scripts/python -m nslkdd.audit notebooks/*.ipynb`.
 - Notebooks são escritos como `notebooks/src/NN_nome.py` (formato `# %%`) e gerados com `tools/py2nb.py --execute`.
+- Experimentos de referência: `tools/rodar_experimentos.py etapa2|etapa3`.
 - Semente global `config.RANDOM_STATE = 42`. Resultados de CV acumulam em `results/experiments.csv` (cache por hash).
 
 ## Estrutura
 ```
-data/raw/            KDDTrain+.txt, KDDTest+.txt (não editar)
+data/new-database/   treino.csv, teste_sem_rotulo.csv, modelo_de_submissao.csv (não editar)
+data/raw/            NSL-KDD original: fora de uso (regra 8)
 docs/enunciado/      PDF do enunciado          docs/material/  slides da disciplina
 docs/_txt/           texto extraído (use Grep para citar o material da professora)
-src/nslkdd/          config, data, preprocessing, evaluation, decision, audit, explain
+src/nslkdd/          config, data, preprocessing, models, evaluation, decision, audit, explain
 notebooks/src/       fontes .py dos notebooks  notebooks/  .ipynb executados (entregáveis)
-results/             experiments.csv, final_config.json, figures/, models/
+results/             experiments.csv, final_config.json, submissao.csv, figures/, models/
 reports/             relatório (3–5 págs) e apresentação
 tests/               testes de dados e de vazamento
+tools/               py2nb.py, rodar_experimentos.py
 ```
 
 ## Integridade acadêmica

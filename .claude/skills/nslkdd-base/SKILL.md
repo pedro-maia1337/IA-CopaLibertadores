@@ -1,47 +1,56 @@
 ---
 name: nslkdd-base
-description: Fatos verificados sobre a base NSL-KDD (KDDTrain+/KDDTest+) e a API do pacote local nslkdd para carregá-la. Use sempre que for ler os dados, mapear ataques para as 5 classes, citar números da base, discutir atributos (protocol_type, service, flag, difficulty, num_outbound_cmds), ataques inéditos do teste ou mudança de distribuição treino→teste.
+description: Fatos verificados sobre a base da competição (treino.csv / teste_sem_rotulo.csv, derivada do NSL-KDD) e a API do pacote local nslkdd para carregá-la. Use sempre que for ler os dados, citar números da base, discutir atributos (protocol_type, service, flag, colunas novas, ausentes, valores impossíveis, duplicatas, rótulos contraditórios) ou preparar a submissão.
 ---
 
-# NSL-KDD — o que é preciso saber
+# Base da competição — o que é preciso saber
+
+A base foi trocada em 31/10/2026. O enunciado segue o mesmo, mas o problema mudou: agora é **binário**, com sujeira injetada e colunas de vazamento. Nada do NSL-KDD original (5 classes, `attack`, `difficulty`, CV por grupo de ataque, 17 ataques inéditos) vale aqui.
 
 ## Carregar (nunca reimplementar a leitura)
 ```python
 from nslkdd import load_train, load_train_frame, config
-X, y, attack = load_train()            # X: 41 atributos; y: 5 classes; attack: nome original
-df = load_train_frame()                # DataFrame completo, inclui 'difficulty' e 'category'
+X, y, groups = load_train()   # X: 41 atributos; y: normal/anomaly; groups: grupo de duplicatas para a CV
+df = load_train_frame()       # DataFrame completo, inclui colunas novas (só para EDA/auditoria)
 # Só no notebook 04:
-from nslkdd import load_test
-X_te, y_te, attack_te = load_test(final_evaluation=True)
+from nslkdd import load_test, write_submission
+X_te, ids = load_test(final_evaluation=True)
+write_submission(ids, y_pred)  # valida ids e rótulos contra modelo_de_submissao.csv
 ```
-`config` expõe `FEATURES`, `CATEGORICAL`, `NUMERIC`, `BINARY`, `HEAVY_TAILED`, `CLASSES`, `ATTACK_TO_CATEGORY`, `RANDOM_STATE`.
+`config` expõe `FEATURES`, `CATEGORICAL`, `LOW_CARDINALITY`, `NUMERIC`, `BINARY`, `RATES`, `HEAVY_TAILED`, `DOMAIN_MAX`, `LEAKY_COLUMNS`, `DERIVED_COLUMNS`, `CLASSES`, `POSITIVE`, `RANDOM_STATE`.
+`load_*` padronizam o texto (caixa e espaços) e não removem linhas.
+
+## Arquivos (`data/new-database/`)
+| Arquivo | Conteúdo |
+|---|---|
+| `treino.csv` | 69.833 linhas, 49 colunas + `class` |
+| `teste_sem_rotulo.csv` | 24.333 linhas, `id` + as mesmas 49 colunas |
+| `modelo_de_submissao.csv` | `id,class_prevista` (a submissão precisa dos mesmos ids, na mesma ordem) |
+| `treino.csv.pdf` | impressão do próprio CSV (1.205 págs); não usar |
 
 ## Números verificados (use-os no texto; não invente outros)
-| Classe | KDDTrain+ | % | KDDTest+ | % |
-|---|---|---|---|---|
-| normal | 67.343 | 53,5 | 9.711 | 43,1 |
-| DoS | 45.927 | 36,5 | 7.458 | 33,1 |
-| Probe | 11.656 | 9,3 | 2.421 | 10,7 |
-| R2L | 995 | 0,8 | 2.754 | 12,2 |
-| U2R | 52 | 0,04 | 200 | 0,9 |
-| **Total** | **125.973** | | **22.544** | |
+| Classe | Linhas brutas | % |
+|---|---|---|
+| normal | 65.754 | 94,2 |
+| anomaly | 4.079 | 5,8 |
+"Tudo normal": 94,2% de acurácia, F1-macro 0,485. Razão 16:1.
 
-- 41 atributos + `attack` + `difficulty`. Sem valores ausentes (verificar e registrar mesmo assim).
-- Categóricos: `protocol_type` (3), `flag` (11), `service` (70 no treino, 64 no teste, nenhum inédito no teste).
-- `num_outbound_cmds` é constante (0) no treino → remover. `is_host_login` tem 1 único valor 1; `su_attempted` tem valor 2 (59 linhas) num atributo que deveria ser binário — inconsistência a discutir.
-- Cauda longa: `src_bytes` mediana 44, máximo 1,38 bi → `log1p` antes de escalar.
-- Redundância no treino (ignorando `difficulty`): 16 linhas com atributos duplicados, 15 grupos **inconsistentes** (mesmos 41 atributos, rótulos diferentes). 658 linhas do treino têm cópia exata no teste (contradiz parcialmente o enunciado; apenas relatar — não mexer no teste).
-- `difficulty` (0–21) = quantos de 21 classificadores de referência acertaram o registro. É derivado do processo de rotulagem e indisponível em produção → **vazamento, descartar** (média 20,3 em normal vs 18,6 em ataques; eta com a classe ≈ 0,62).
+- **Colunas (49):** 41 de rede (`config.FEATURES`) + 5 derivadas + 3 de vazamento.
+- **Vazamento (fora do modelo):** `score_ids_legado`, `tipo_alerta_soc`, `tempo_resposta_analista_min` são cópias ruidosas do rótulo, posteriores ao evento. Evidência (HGB, CV agrupada): 41 de rede F1 0,970; + as três 0,995; **só as três, sem rede, 0,992**. Entre conexões `normal`, score alto ou baixo não muda em nada a probabilidade vista pelo tráfego. Fora dos conflitos, score>0,5 & ALERTA dá 2.082 anomaly contra 27 normal. Estão no teste também: usá-las subiria o ranking e derrubaria a nota metodológica.
+- **Derivadas (fora do modelo):** `src_bytes_kb`, `dst_bytes_kb`, `total_bytes`, `same_srv_pct`, `protocolo_cod` são cópias exatas, com os mesmos ausentes. Não recuperam nada.
+- **Grafias:** `protocol_type` 6→3 valores, `flag` 19→11, `service` 96→67 após padronizar.
+- **Ausentes:** 24 dos 41 atributos, 93,8% das linhas têm ao menos um. Maiores: `src_bytes` 40,0%, `dst_host_srv_count` 39,9%, `dst_host_serror_rate` 30,6%, `dst_host_same_src_port_rate` 28,0%. A maioria é compatível com MCAR. **`dst_host_serror_rate` é MNAR**: anomaly 8,5% se ausente vs 4,6% se presente; ausência sobe de ~30% para 52,7% quando `dst_host_srv_serror_rate` = 1.
+- **Valores impossíveis (8,1% das linhas):** taxas 1,5/2/5/10 em 5 colunas de taxa, contagens multiplicadas por 10/100/1000 (`count`, `srv_count`, `dst_host_count`, `duration`), negativos em `duration` (358) e `src_bytes` (189). Taxa de anomalia igual à da base (5,9% vs 5,8%): erro de medição, não sinal. `su_attempted` = 2 existe no NSL-KDD original: manter.
+- **Duplicatas:** 13.067 cópias (18,7% das linhas), 56.766 linhas distintas.
+- **Rótulos contraditórios:** 1.702 grupos (3.730 linhas) com a mesma linha rotulada com as duas classes, 50,8% `anomaly` contra 3,3% no resto. Um modelo só de tráfego decide 98,5% deles com confiança; ~57% parecem ataques reais (968, contra 1.817 anomalias limpas).
+- **Outliers (IQR×3 em log):** 14,6% das linhas, 11,8% das anomalias, com taxa de anomalia *menor* que a do resto (4,7% vs 6,0%). Diferente do NSL-KDD original: não concentram ataques. Ainda assim não removê-los: são tráfego real, e a remoção perderia positivos raros.
+- **Teto do F1 "bruto":** com os conflitos na conta, o F1-macro fica preso em ~0,88 para qualquer modelo. Isso é aritmética do ruído, não falta de qualidade.
+- **Esquema do teste:** categorias contidas nas do treino e sem grafias variantes (`tests/test_data.py`).
 
-## Mudança de distribuição treino → teste (o desafio real da competição)
-- 17 ataques existem **só no teste**: apache2, mailbomb, processtable, udpstorm (DoS); mscan, saint (Probe); named, sendmail, snmpgetattack, snmpguess, worm, xlock, xsnoop (R2L); httptunnel, ps, sqlattack, xterm (U2R). `spy` e `warezclient` existem só no treino.
-- R2L no treino é 89% `warezclient` (890/995); no teste é dominado por `guess_passwd` (1.231) e `warezmaster` (944), que no treino têm 53 e 20 exemplos. U2R no teste: 133 de 200 são `httptunnel` (inédito).
-- 54 linhas de `snmpgetattack` no teste são idênticas a linhas `normal` do teste → teto de desempenho inevitável para R2L.
-- Consequência: CV estratificada no treino dá F1-macro ≈ 0,91–0,94; no teste, modelos típicos ficam bem abaixo (literatura: ~0,5–0,65). Quem vence é quem melhora **recall de R2L/U2R sem destruir a precisão**, não quem otimiza a 4ª casa decimal da CV.
-- Diagnóstico honesto disponível no treino: `make_cv("attack_group", attack=attack)` (cada tipo de ataque inteiro em um fold). Ver skill `etapa3-modelagem`.
+## Armadilhas específicas
+- Relação falsa: `dst_host_srv_count` **não** é `dst_host_same_srv_rate × dst_host_count` (correlação 0,55); as janelas contam coisas diferentes. Testado e descartado como forma de imputar.
+- `data/raw/` contém as linhas do teste com rótulos. **Nunca cruzar** com o teste, nem usar como treino extra (regra 8 do `CLAUDE.md`).
+- Testar `id` como atributo não é possível (o treino não tem), e nem faria sentido.
 
-## Mapeamento ataque → classe
-Fica em `config.ATTACK_TO_CATEGORY` (cobre os 40 nomes do treino e do teste; o carregador falha se surgir nome desconhecido). `httptunnel` em U2R e `worm`, `snmp*` em R2L seguem o mapeamento mais usado na literatura (gera 200 U2R / 2.754 R2L no teste). Detalhes e dicionário de atributos: `references/atributos.md`.
-
-## Pontos para confirmar com a professora (registrar a resposta em CLAUDE.md)
-- Alvo = 5 categorias (assumido; o enunciado fala em U2R com "poucas dezenas" de instâncias, o que só vale para categorias).
+## Dicionário de atributos
+`references/atributos.md`.

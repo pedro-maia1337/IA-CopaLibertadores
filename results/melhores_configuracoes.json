@@ -1,0 +1,64 @@
+{
+  "HGB_native": {
+    "redundancy": "majority_label",
+    "domain": "nan",
+    "imputation": "none",
+    "scaling": "none",
+    "log_transform": false,
+    "service_encoding": "ordinal",
+    "categorical_encoding": "ordinal",
+    "balancing": "none"
+  },
+  "RF": {
+    "redundancy": "none",
+    "domain": "nan",
+    "imputation": "median",
+    "scaling": "none",
+    "log_transform": false,
+    "service_encoding": "onehot",
+    "categorical_encoding": "onehot",
+    "balancing": "none",
+    "reduction": "tree_select"
+  },
+  "MLP": {
+    "redundancy": "none",
+    "domain": "nan",
+    "imputation": "median",
+    "scaling": "standard",
+    "log_transform": true,
+    "service_encoding": "onehot",
+    "balancing": "none",
+    "reduction": "none"
+  },
+  "hiperparametros": {
+    "HGB_native": {
+      "min_samples_leaf": 5,
+      "max_leaf_nodes": 15,
+      "max_iter": 800,
+      "learning_rate": 0.06,
+      "l2_regularization": 0.1
+    },
+    "XGB": {
+      "subsample": 0.8,
+      "n_estimators": 1000,
+      "min_child_weight": 1,
+      "max_depth": 7,
+      "learning_rate": 0.1,
+      "colsample_bytree": 0.5
+    },
+    "RF": {
+      "n_estimators": 500,
+      "min_samples_leaf": 1,
+      "max_features": 0.5,
+      "class_weight": null
+    },
+    "MLP": {
+      "learning_rate_init": 0.001,
+      "hidden_layer_sizes": [
+        256,
+        128
+      ],
+      "alpha": 0.0001
+    }
+  }
+}

@@ -1,9 +1,10 @@
 """Blocos de pré-processamento e montagem de pipelines imblearn.
 
-Tudo que aprende parâmetros (codificação, escala, seleção, balanceamento,
-remoção de redundâncias) fica DENTRO do Pipeline, então em validação cruzada é
-ajustado só nos folds de treino e nunca enxerga o fold de validação ou o teste.
-Ordem: redundância -> codificação/transformação -> redução -> balanceamento -> modelo.
+Tudo que aprende parâmetros (imputação, codificação, escala, seleção, balanceamento,
+remoção de redundâncias) fica DENTRO do Pipeline, então em validação cruzada é ajustado
+só nos folds de treino e nunca enxerga o fold de validação ou o teste.
+Ordem: redundância -> domínio -> imputação/codificação/transformação -> redução ->
+balanceamento -> modelo.
 """
 import numpy as np
 import pandas as pd
@@ -15,8 +16,10 @@ from imblearn.under_sampling import EditedNearestNeighbours, RandomUnderSampler,
 from sklearn.base import BaseEstimator, TransformerMixin, clone
 from sklearn.compose import ColumnTransformer
 from sklearn.decomposition import PCA
-from sklearn.ensemble import ExtraTreesClassifier
+from sklearn.ensemble import ExtraTreesClassifier, HistGradientBoostingClassifier
+from sklearn.experimental import enable_iterative_imputer  # noqa: F401
 from sklearn.feature_selection import SelectFromModel, SelectKBest, f_classif, mutual_info_classif
+from sklearn.impute import IterativeImputer, SimpleImputer
 from sklearn.model_selection import StratifiedKFold
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import (FunctionTransformer, MinMaxScaler, OneHotEncoder,
@@ -24,32 +27,100 @@ from sklearn.preprocessing import (FunctionTransformer, MinMaxScaler, OneHotEnco
                                    StandardScaler, TargetEncoder)
 
 from . import config
+from .data import conflict_mask, duplicate_groups
 
 # ---------------------------------------------------------------- redundância
 
-def _resolve_redundancy(X, y, strategy):
-    df = X.copy()
-    df["__y"] = np.asarray(y)
-    feats = list(X.columns)
-    if strategy == "drop_duplicates":
-        df = df.drop_duplicates()
-    elif strategy == "drop_inconsistent":
-        n_labels = df.groupby(feats, dropna=False)["__y"].transform("nunique")
-        df = df[n_labels == 1].drop_duplicates()
-    elif strategy == "majority_label":
-        mode = df.groupby(feats, dropna=False)["__y"].transform(lambda s: s.mode().iat[0])
-        df = df.assign(__y=mode).drop_duplicates()
-    else:
-        raise ValueError(strategy)
-    return df[feats], df["__y"].to_numpy()
+def _ordinal_hgb():
+    """Modelo auxiliar rápido e tolerante a NaN para decidir rótulos conflitantes."""
+    encode = ColumnTransformer(
+        [("cat", OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1,
+                                encoded_missing_value=-1), config.CATEGORICAL)],
+        remainder="passthrough")
+    return make_pipeline(encode, HistGradientBoostingClassifier(
+        max_iter=200, categorical_features=[0, 1, 2], random_state=config.RANDOM_STATE))
+
+
+def _relabel_conflicts(X, y, keep_clean, conflicts, margin):
+    """Rotula conflitos pelo modelo treinado nas linhas limpas; incertos saem do treino."""
+    model = _ordinal_hgb().fit(X.iloc[keep_clean], y[keep_clean])
+    labels = model.classes_
+    proba = model.predict_proba(X.iloc[conflicts])
+    certain = proba.max(axis=1) >= 1 - margin
+    return labels[proba.argmax(axis=1)], certain
+
+
+def _majority_labels(groups, y):
+    """Rótulo com maioria estrita em cada grupo; empates ficam sem rótulo (NaN)."""
+    counts = pd.DataFrame({"g": groups, "y": y}).groupby(["g", "y"]).size().reset_index(name="n")
+    top = counts[counts["n"] == counts.groupby("g")["n"].transform("max")]
+    winners = top[~top["g"].duplicated(keep=False)].set_index("g")["y"]
+    return pd.Series(groups).map(winners)
+
+
+def _resolve_redundancy(X, y, strategy, margin=0.2):
+    y = np.asarray(y)
+    groups = duplicate_groups(X)
+    first = ~pd.Series(groups).duplicated().to_numpy()
+    conflict = conflict_mask(groups, y)
+    if strategy == "drop_duplicates":  # remove só cópias com o mesmo rótulo
+        keep = ~pd.DataFrame({"g": groups, "y": y}).duplicated().to_numpy()
+        return X.iloc[keep], y[keep]
+    if strategy == "drop_inconsistent":
+        keep = first & ~conflict
+        return X.iloc[keep], y[keep]
+    if strategy == "majority_label":
+        labels = _majority_labels(groups, y)
+        keep = first & labels.notna().to_numpy()
+        return X.iloc[keep], labels.to_numpy()[keep]
+    if strategy == "relabel_model":
+        clean = first & ~conflict
+        doubtful = np.flatnonzero(first & conflict)
+        new_y, certain = _relabel_conflicts(X, y, clean, doubtful, margin)
+        rows = np.r_[np.flatnonzero(clean), doubtful[certain]]
+        return X.iloc[rows], np.r_[y[clean], new_y[certain]]
+    raise ValueError(strategy)
 
 
 def make_redundancy_sampler(strategy: str = "none"):
-    """'none' | 'drop_duplicates' | 'drop_inconsistent' | 'majority_label'."""
+    """'none' | 'drop_duplicates' | 'drop_inconsistent' | 'majority_label' | 'relabel_model'."""
     if strategy == "none":
         return None
     return FunctionSampler(func=_resolve_redundancy, validate=False,
                            kw_args={"strategy": strategy})
+
+# ---------------------------------------------------------------- domínio
+
+class DomainCleaner(BaseEstimator, TransformerMixin):
+    """Trata valores impossíveis pela definição do atributo; não aprende nada dos dados.
+
+    strategy: 'nan' (vira ausente) | 'clip' (satura no limite) | 'none'.
+    Cobre taxas > 1, contagens acima da janela e negativos em atributos não negativos.
+    """
+
+    def __init__(self, strategy="nan"):
+        self.strategy = strategy
+
+    def fit(self, X, y=None):
+        self.feature_names_in_ = np.asarray(X.columns, dtype=object)
+        return self
+
+    def transform(self, X):
+        if self.strategy == "none":
+            return X
+        if self.strategy not in ("nan", "clip"):
+            raise ValueError(self.strategy)
+        X = X.copy()
+        numeric = X[config.NUMERIC]
+        limits = pd.Series(config.DOMAIN_MAX).reindex(config.NUMERIC)
+        if self.strategy == "clip":
+            X[config.NUMERIC] = numeric.clip(lower=0, upper=limits, axis=1)
+        else:
+            X[config.NUMERIC] = numeric.mask((numeric < 0) | numeric.gt(limits, axis=1))
+        return X
+
+    def get_feature_names_out(self, input_features=None):
+        return self.feature_names_in_
 
 # ---------------------------------------------------------------- codificação
 
@@ -64,28 +135,38 @@ class FrequencyEncoder(BaseEstimator, TransformerMixin):
 
     def transform(self, X):
         X = pd.DataFrame(X, columns=self.feature_names_in_)
-        return np.column_stack([X[c].map(m).fillna(0.0).to_numpy(float)
+        return np.column_stack([X[c].map(m).astype(float).fillna(0.0).to_numpy()
                                 for c, m in self.maps_.items()])
 
     def get_feature_names_out(self, input_features=None):
         return np.array([f"{c}_freq" for c in self.feature_names_in_], dtype=object)
 
 
-def make_service_encoder(kind: str):
-    """Codificação do atributo de alta cardinalidade 'service' (70 valores)."""
+def make_encoder(kind: str):
+    """Codificação simbólico-numérica; 'service' tem 67 valores e os demais, poucos."""
     if kind == "onehot":
         return OneHotEncoder(handle_unknown="ignore", sparse_output=False)
-    if kind == "onehot_rare":  # agrupa serviços com < 0,1% das linhas em 'infrequent'
+    if kind == "onehot_rare":  # agrupa categorias com < 0,1% das linhas em 'infrequent'
         return OneHotEncoder(handle_unknown="infrequent_if_exist", min_frequency=0.001,
                              sparse_output=False)
     if kind == "frequency":
         return FrequencyEncoder()
     if kind == "target":  # cross-fitting interno evita vazamento do rótulo
-        return TargetEncoder(target_type="multiclass",
+        return TargetEncoder(target_type="binary",
                              cv=StratifiedKFold(5, shuffle=True, random_state=config.RANDOM_STATE))
     if kind == "ordinal":  # só faz sentido para árvores
         return OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1)
     raise ValueError(kind)
+
+
+def _symbolic(kind):
+    """Ausente em categórico vira a categoria 'ausente', que o teste também apresenta."""
+    return make_pipeline(SimpleImputer(strategy="constant", fill_value="ausente"), make_encoder(kind))
+
+# ---------------------------------------------------------------- numéricos
+
+def signed_log1p(x):
+    return np.sign(x) * np.log1p(np.abs(x))
 
 
 def make_scaler(kind: str):
@@ -95,29 +176,54 @@ def make_scaler(kind: str):
         "robust": RobustScaler,
         "quantile": lambda: QuantileTransformer(output_distribution="normal",
                                                 random_state=config.RANDOM_STATE),
-        "none": lambda: "passthrough",
+        "none": lambda: None,
     }[kind]()
 
 
-def make_preprocessor(service_encoding="onehot", scaling="standard", log_transform=True,
+def make_imputer(kind: str):
+    """'none' (NaN nativo: árvores) | 'mean' | 'median' | 'median_indicator' | 'iterative'."""
+    if kind == "none":
+        return None
+    if kind in ("mean", "median"):
+        return SimpleImputer(strategy=kind)
+    if kind == "median_indicator":  # preserva o sinal do ausente MNAR (dst_host_serror_rate)
+        return SimpleImputer(strategy="median", add_indicator=True)
+    if kind == "iterative":
+        return IterativeImputer(max_iter=5, n_nearest_features=10, sample_posterior=False,
+                                random_state=config.RANDOM_STATE)
+    raise ValueError(kind)
+
+
+def _numeric(columns_log, scaling, imputation):
+    steps = [make_imputer(imputation)]
+    if columns_log:
+        steps.append(FunctionTransformer(signed_log1p, feature_names_out="one-to-one"))
+    steps.append(make_scaler(scaling))
+    steps = [s for s in steps if s is not None]
+    return make_pipeline(*steps) if steps else "passthrough"
+
+
+def make_preprocessor(service_encoding="onehot", categorical_encoding="onehot", scaling="standard",
+                      log_transform=True, imputation="median",
                       drop=tuple(config.CONSTANT_IN_TRAIN)):
     numeric = [c for c in config.NUMERIC if c not in drop]
     heavy = [c for c in config.HEAVY_TAILED if c in numeric] if log_transform else []
     light = [c for c in numeric if c not in heavy]
-    scaler = make_scaler(scaling)
     transformers = [
-        ("cat", OneHotEncoder(handle_unknown="ignore", sparse_output=False),
-         ["protocol_type", "flag"]),
-        ("service", make_service_encoder(service_encoding), ["service"]),
-        ("num", clone(scaler) if scaler != "passthrough" else scaler, light),
+        ("cat", _symbolic(categorical_encoding), config.LOW_CARDINALITY),
+        ("service", _symbolic(service_encoding), ["service"]),
+        ("num", _numeric(False, scaling, imputation), light),
     ]
     if heavy:
-        log = FunctionTransformer(np.log1p, feature_names_out="one-to-one")
-        transformers.append(("log", make_pipeline(log, clone(scaler)) if scaler != "passthrough"
-                             else log, heavy))
-    return ColumnTransformer(transformers, remainder="drop", verbose_feature_names_out=False)
+        transformers.append(("log", _numeric(True, scaling, imputation), heavy))
+    prep = ColumnTransformer(transformers, remainder="drop", verbose_feature_names_out=False)
+    return prep.set_output(transform="pandas")
 
 # ---------------------------------------------------------------- redução
+
+def _mutual_info(X, y):
+    return mutual_info_classif(X, y, random_state=config.RANDOM_STATE)
+
 
 def make_reducer(kind="none", k=20, variance=0.95):
     """'none' | 'pca' | 'kbest_f' | 'kbest_mi' | 'tree_select'."""
@@ -128,29 +234,35 @@ def make_reducer(kind="none", k=20, variance=0.95):
     if kind == "kbest_f":
         return SelectKBest(f_classif, k=k)
     if kind == "kbest_mi":
-        return SelectKBest(lambda X, y: mutual_info_classif(X, y, random_state=config.RANDOM_STATE), k=k)
+        return SelectKBest(_mutual_info, k=k)
     if kind == "tree_select":
-        return SelectFromModel(ExtraTreesClassifier(n_estimators=100, n_jobs=-1,
+        return SelectFromModel(ExtraTreesClassifier(n_estimators=100, n_jobs=1,
                                                     random_state=config.RANDOM_STATE),
                                threshold="median")
     raise ValueError(kind)
 
 # ---------------------------------------------------------------- balanceamento
 
-def oversample_to(min_count):
+class OversampleTo:
     """sampling_strategy: eleva cada classe a pelo menos min_count instâncias."""
-    def strategy(y):
+
+    def __init__(self, min_count):
+        self.min_count = min_count
+
+    def __call__(self, y):
         counts = pd.Series(y).value_counts()
-        return {c: int(max(n, min_count)) for c, n in counts.items()}
-    return strategy
+        return {c: int(max(n, self.min_count)) for c, n in counts.items()}
 
 
-def undersample_to(max_count):
+class UndersampleTo:
     """sampling_strategy: reduz cada classe a no máximo max_count instâncias."""
-    def strategy(y):
+
+    def __init__(self, max_count):
+        self.max_count = max_count
+
+    def __call__(self, y):
         counts = pd.Series(y).value_counts()
-        return {c: int(min(n, max_count)) for c, n in counts.items()}
-    return strategy
+        return {c: int(min(n, self.max_count)) for c, n in counts.items()}
 
 
 def make_balancer(kind="none", min_count=None, max_count=None):
@@ -159,11 +271,11 @@ def make_balancer(kind="none", min_count=None, max_count=None):
     kind: 'none' | 'class_weight' | 'ros' | 'rus' | 'smote' | 'borderline_smote' |
           'adasyn' | 'smote_tomek' | 'smote_enn' | 'tomek' | 'enn' | 'hybrid'
     'class_weight' não reamostra: é tratado em build_pipeline via o modelo.
-    'hybrid' = RUS das classes grandes até max_count + SMOTE das pequenas até min_count.
+    'hybrid' = RUS de 'normal' até max_count + SMOTE de 'anomaly' até min_count.
     """
     rs = config.RANDOM_STATE
-    over = oversample_to(min_count) if min_count else "not majority"
-    under = undersample_to(max_count) if max_count else "auto"
+    over = OversampleTo(min_count) if min_count else "not majority"
+    under = UndersampleTo(max_count) if max_count else "auto"
     if kind in ("none", "class_weight"):
         return None
     if kind == "ros":
@@ -181,22 +293,25 @@ def make_balancer(kind="none", min_count=None, max_count=None):
     if kind == "smote_enn":
         return SMOTEENN(smote=SMOTE(sampling_strategy=over, random_state=rs), random_state=rs)
     if kind == "tomek":
-        return TomekLinks(n_jobs=-1)
+        return TomekLinks()
     if kind == "enn":
-        return EditedNearestNeighbours(n_jobs=-1)
+        return EditedNearestNeighbours()
     if kind == "hybrid":
-        return [("rus", RandomUnderSampler(sampling_strategy=undersample_to(max_count or 20000),
+        return [("rus", RandomUnderSampler(sampling_strategy=UndersampleTo(max_count or 20000),
                                            random_state=rs)),
-                ("smote", SMOTE(sampling_strategy=oversample_to(min_count or 2000),
+                ("smote", SMOTE(sampling_strategy=OversampleTo(min_count or 5000),
                                 random_state=rs))]
     raise ValueError(kind)
 
 # ---------------------------------------------------------------- pipeline
 
-def build_pipeline(model, *, redundancy="none", service_encoding="onehot",
+def build_pipeline(model, *, redundancy="none", domain="nan", imputation="median",
+                   service_encoding="onehot", categorical_encoding="onehot",
                    scaling="standard", log_transform=True, reduction="none",
                    reduction_k=20, balancing="none", min_count=None, max_count=None):
     """Monta o Pipeline completo. Os nomes dos argumentos viram colunas do log."""
+    if imputation == "none" and (reduction != "none" or balancing not in ("none", "class_weight")):
+        raise ValueError("Redução e reamostragem não aceitam NaN: escolha uma imputação.")
     model = clone(model)
     if balancing == "class_weight":
         if "class_weight" not in model.get_params():
@@ -206,7 +321,9 @@ def build_pipeline(model, *, redundancy="none", service_encoding="onehot",
     red = make_redundancy_sampler(redundancy)
     if red is not None:
         steps.append(("redundancy", red))
-    steps.append(("prep", make_preprocessor(service_encoding, scaling, log_transform)))
+    steps.append(("domain", DomainCleaner(domain)))
+    steps.append(("prep", make_preprocessor(service_encoding, categorical_encoding, scaling,
+                                            log_transform, imputation)))
     reducer = make_reducer(reduction, k=reduction_k)
     if reducer is not None:
         steps.append(("reduce", reducer))

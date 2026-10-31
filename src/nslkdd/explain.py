@@ -8,24 +8,23 @@ from . import config
 
 
 def unwrap(model):
-    """Devolve o Pipeline interno se o modelo estiver envolvido (ex.: WeightedDecisionClassifier)."""
+    """Devolve o Pipeline interno se o modelo estiver envolvido (ex.: ThresholdClassifier)."""
     return getattr(model, "estimator_", model)
 
 
 def transformed(pipe, X):
-    """Aplica as etapas de transformação (samplers são ignorados no transform)."""
-    pipe = unwrap(pipe)
-    head = pipe[:-1]
-    Xt = head.transform(X)
-    try:
-        names = head.get_feature_names_out()
-    except Exception:
-        names = [f"f{i}" for i in range(Xt.shape[1])]
-    return pd.DataFrame(Xt, columns=names, index=X.index)
+    """Aplica as etapas de transformação (samplers são ignorados no transform).
+
+    O pré-processador devolve DataFrame, então os nomes das colunas já vêm prontos. Depois
+    de PCA ou seleção de atributos, os nomes são os gerados pelo passo de redução.
+    """
+    Xt = unwrap(pipe)[:-1].transform(X)
+    return pd.DataFrame(np.asarray(Xt, dtype=float), columns=getattr(Xt, "columns", None),
+                        index=X.index)
 
 
 def model_importances(pipe, X):
-    """Importância nativa do estimador final (árvores/ensembles)."""
+    """Importância nativa do estimador final (árvores/ensembles com feature_importances_)."""
     model = unwrap(pipe)[-1]
     names = transformed(pipe, X.iloc[:5]).columns
     return (pd.Series(model.feature_importances_, index=names)
@@ -55,7 +54,10 @@ def shap_values(pipe, X, sample=2000):
 
 
 def surrogate_rules(pipe, X, max_depth=4):
-    """Árvore rasa que imita as previsões do modelo: regras legíveis + fidelidade."""
+    """Árvore rasa que imita as previsões do modelo: regras legíveis + fidelidade.
+
+    A árvore do scikit-learn aceita NaN, então funciona também com imputação 'none'.
+    """
     Xt = transformed(pipe, X)
     y_model = pipe.predict(X)
     tree = DecisionTreeClassifier(max_depth=max_depth, random_state=config.RANDOM_STATE)

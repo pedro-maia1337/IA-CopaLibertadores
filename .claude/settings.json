@@ -9,8 +9,8 @@
       "Read(results/**)"
     ],
     "deny": [
-      "Edit(data/raw/**)",
-      "Write(data/raw/**)"
+      "Edit(data/new-database/**)",
+      "Write(data/new-database/**)"
     ]
   }
 }

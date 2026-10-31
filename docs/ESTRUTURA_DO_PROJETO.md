@@ -1,6 +1,8 @@
-# Estrutura do Projeto — Detecção de Intrusão (NSL-KDD)
+# Estrutura do Projeto — Detecção de Intrusão (NSL-KDD, base atualizada)
 
 Este documento explica como o projeto está organizado, o que cada arquivo faz e como as peças se encaixam ao longo das 4 etapas do trabalho.
+
+Em 31/10/2026 a base foi trocada por `data/new-database/`: o problema passou a ser **binário** (`normal`/`anomaly`), o teste não tem rótulos e a base traz ausentes, valores impossíveis, duplicatas com rótulos contraditórios e colunas de vazamento. O enunciado permaneceu o mesmo. Ver a Seção 8.
 
 ---
 
@@ -20,7 +22,8 @@ IA-CopaLibertadores/
 │   └── skills/                   8 skills especializadas (ver Seção 3)
 │
 ├── data/
-│   ├── raw/                      KDDTrain+.txt e KDDTest+.txt originais (somente leitura)
+│   ├── new-database/             treino.csv, teste_sem_rotulo.csv, modelo_de_submissao.csv
+│   ├── raw/                      NSL-KDD original: fora de uso (contém os rótulos do teste)
 │   ├── interim/                  Dados intermediários (se necessário)
 │   └── processed/                Dados processados (se necessário)
 │
@@ -40,14 +43,17 @@ IA-CopaLibertadores/
 │   └── *.ipynb                   Notebooks executados (entregáveis)
 ├── results/
 │   ├── experiments.csv           Tabela comparativa acumulada (gerada automaticamente)
+│   ├── melhores_configuracoes.json  Melhor configuração por família (rodar_experimentos.py)
 │   ├── final_config.json         Configuração final congelada (gerada na Etapa 3)
+│   ├── submissao.csv             Arquivo entregue para o ranking (gerado na Etapa 4)
 │   ├── figures/                  Gráficos para notebooks e relatório
 │   └── models/                   Modelo final treinado (.joblib)
 ├── reports/
 │   └── declaracao_ia.md          Registro do uso de IA generativa (exigido pelo enunciado)
 ├── tests/                        Testes automatizados de dados e de vazamento
 ├── tools/
-│   └── py2nb.py                  Converte fontes .py em notebooks .ipynb e os executa
+│   ├── py2nb.py                  Converte fontes .py em notebooks .ipynb e os executa
+│   └── rodar_experimentos.py     Busca por coordenadas e comparação de algoritmos
 └── .venv/                        Ambiente virtual Python isolado
 ```
 
@@ -69,9 +75,9 @@ IA-CopaLibertadores/
 
 ### `CLAUDE.md`
 Memória permanente do projeto, lida automaticamente pelo Claude Code no início de toda sessão. Contém:
-- objetivo (5 classes, F1-macro no KDDTest+) e pesos da nota;
+- objetivo (binário, F1-macro no teste, submissão por arquivo) e pesos da nota;
 - tabela de prazos com a skill correspondente a cada etapa;
-- as **7 regras inegociáveis** (teste usado uma única vez, split fixo, tudo dentro do pipeline, `difficulty` descartado, teste nunca alterado, seleção por CV, justificativa registrada);
+- as **8 regras inegociáveis** (teste usado uma única vez, split fixo, tudo dentro do pipeline, só os 41 atributos de rede como preditores, teste nunca alterado, seleção por CV agrupada, justificativa registrada, `data/raw/` fora de uso);
 - comandos do ambiente e lembrete de integridade acadêmica.
 
 ### `README.md`
@@ -87,7 +93,7 @@ O primeiro lista as dependências com versões mínimas (numpy, pandas, scikit-l
 Exclui do versionamento o ambiente virtual, caches, dados brutos/processados e modelos treinados.
 
 ### `.claude/settings.json`
-Libera sem confirmação os comandos rotineiros (testes, auditoria, conversão de notebooks, leitura de `docs/` e `results/`) e **bloqueia edição de `data/raw/`**, protegendo a base original.
+Libera sem confirmação os comandos rotineiros (testes, auditoria, conversão de notebooks, leitura de `docs/` e `results/`) e **bloqueia edição de `data/raw/`**. A proteção equivalente para `data/new-database/` ainda precisa ser adicionada manualmente.
 
 ---
 
@@ -97,12 +103,12 @@ Skills são guias especializados que o Claude Code carrega sob demanda, apenas q
 
 | Skill | Quando é usada | Conteúdo principal |
 |---|---|---|
-| `nslkdd-base` | Ler dados, citar números, discutir atributos | API de carga, tabela de classes treino×teste, problemas conhecidos, 17 ataques inéditos, mudança de distribuição. Inclui `references/atributos.md` (dicionário dos 41 atributos e pares redundantes) |
-| `anti-vazamento` | Qualquer código com fit/transform/reamostragem/teste | Os 8 vazamentos possíveis e a defesa de cada um, padrões certos e proibidos, uso da auditoria, texto-base para o relatório |
-| `etapa1-eda` | Notebook 01 (24/10) | Roteiro em 11 seções, tabela de diagnóstico problema → evidência → técnica |
+| `nslkdd-base` | Ler dados, citar números, discutir atributos | API de carga, números verificados, ausentes, valores impossíveis, duplicatas, conflitos, vazamento. Inclui `references/atributos.md` (dicionário dos 41 atributos e pares redundantes) |
+| `anti-vazamento` | Qualquer código com fit/transform/reamostragem/teste | Os 11 vazamentos possíveis e a defesa de cada um, critério para colunas suspeitas, padrões certos e proibidos, uso da auditoria, texto-base para o relatório |
+| `etapa1-eda` | Notebook 01 | Roteiro em 11 seções, política sobre o teste, cuidados de qualidade |
 | `etapa2-preprocessamento` | Notebook 02 (07/11) | Eixos de comparação mapeados aos requisitos 1–5, protocolo de busca, resultados de referência, justificativas citando o material |
-| `etapa3-modelagem` | Notebook 03 (21/11) | Algoritmos e espaços de hiperparâmetros, formato da tabela comparativa, táticas legítimas para subir no ranking, congelamento do modelo final |
-| `etapa4-avaliacao-final` | Notebook 04 (28/11) | Protocolo de avaliação única no teste, análise de erros por ataque, explicabilidade (importâncias, SHAP, regras) |
+| `etapa3-modelagem` | Notebook 03 (21/11) | Algoritmos, busca de hiperparâmetros, formato da tabela comparativa, onde está o ganho real, congelamento do modelo final |
+| `etapa4-avaliacao-final` | Notebook 04 (28/11) | Protocolo da submissão única, estimativa por OOF (o teste não tem rótulos), explicabilidade (importâncias, SHAP, regras) |
 | `notebook-padrao` | Criar ou alterar qualquer .ipynb | Fluxo .py → .ipynb executado, cabeçalho obrigatório, regras de escrita, checklist de entrega |
 | `relatorio-e-apresentacao` | Relatório e slides | Estrutura com orçamento de páginas, modelo da tabela, declaração de IA, referências, roteiro da apresentação |
 
@@ -115,52 +121,56 @@ Skills são guias especializados que o Claude Code carrega sob demanda, apenas q
 Código reutilizado por todos os notebooks, evitando duplicação e erros.
 
 ### `config.py` — constantes
-Caminhos do projeto, semente (`RANDOM_STATE = 42`), nomes das 41 colunas, grupos de atributos (`CATEGORICAL`, `NUMERIC`, `BINARY`, `HEAVY_TAILED`), colunas proibidas (`LEAKY_COLUMNS = ["difficulty"]`), coluna constante (`num_outbound_cmds`), as 5 classes e o mapeamento completo `ATTACK_TO_CATEGORY` (40 ataques de treino e teste).
+Caminhos do projeto, semente (`RANDOM_STATE = 42`), os 41 atributos permitidos (`FEATURES`), colunas proibidas (`LEAKY_COLUMNS`), cópias exatas (`DERIVED_COLUMNS`), grupos de atributos (`CATEGORICAL`, `NUMERIC`, `RATES`, `HEAVY_TAILED`), classes e limites de domínio (`DOMAIN_MAX`).
 
 ### `data.py` — leitura dos dados
 | Função | Retorno |
 |---|---|
-| `load_train()` | `X` (41 atributos), `y` (5 classes), `attack` (nome original do ataque) |
-| `load_train_frame()` | DataFrame completo, incluindo `difficulty` e `category` (para EDA) |
-| `load_test(final_evaluation=True)` | O mesmo para o KDDTest+; **sem o parâmetro, lança erro** |
+| `load_train()` | `X` (41 atributos), `y` (`normal`/`anomaly`), `groups` (grupo de duplicatas para a CV) |
+| `load_train_frame()` | DataFrame completo com as colunas novas (para EDA e auditoria) |
+| `load_test(final_evaluation=True)` | `X` e `ids` do teste; **sem o parâmetro, lança erro** |
+| `write_submission(ids, y_pred)` | Valida ids, ordem e rótulos contra o modelo e grava `results/submissao.csv` |
+| `duplicate_groups`, `conflict_mask`, `evaluation_mask` | Grupos de cópias, linhas contraditórias e linhas usadas para pontuar |
 
-Também falha se aparecer um nome de ataque sem categoria mapeada.
+A carga padroniza caixa e espaços dos categóricos, regra fixa por linha que não remove nada.
 
 ### `preprocessing.py` — pipelines
-`build_pipeline(modelo, **opções)` monta um `Pipeline` do imbalanced-learn na ordem: redundância → codificação/transformação → redução → balanceamento → modelo. Cada opção é um eixo de comparação exigido pelo enunciado:
+`build_pipeline(modelo, **opções)` monta um `Pipeline` do imbalanced-learn na ordem: redundância → domínio → imputação/codificação/transformação → redução → balanceamento → modelo. Cada opção é um eixo de comparação exigido pelo enunciado:
 
 | Parâmetro | Valores | Requisito do enunciado |
 |---|---|---|
-| `redundancy` | none, drop_duplicates, drop_inconsistent, majority_label | 1 — redundantes/inconsistentes |
+| `redundancy` | none, drop_duplicates, drop_inconsistent, majority_label, relabel_model | 1 — redundantes/inconsistentes |
+| `domain` | nan, clip, none | 1 — valores inconsistentes |
+| `imputation` | none (NaN nativo), mean, median, median_indicator, iterative | dados ausentes |
 | `balancing` (+ `min_count`, `max_count`) | none, class_weight, ros, rus, smote, borderline_smote, adasyn, smote_tomek, smote_enn, hybrid, tomek, enn | 2 — balanceamento (e seleção de instâncias) |
-| `service_encoding` | onehot, onehot_rare, frequency, target, ordinal | 3 — conversão simbólico-numérica |
+| `service_encoding`, `categorical_encoding` | onehot, onehot_rare, frequency, target, ordinal | 3 — conversão simbólico-numérica |
 | `scaling`, `log_transform` | standard, minmax, robust, quantile, none / True, False | 4 — normalização/transformação |
 | `reduction` (+ `reduction_k`) | none, pca, kbest_f, kbest_mi, tree_select | 5 — redução de dimensionalidade |
 
 Como tudo está dentro do pipeline, a validação cruzada ajusta cada etapa **só nos folds de treino**, eliminando vazamento por construção.
 
 ### `evaluation.py` — validação e registro
-- `make_cv("stratified")`: StratifiedKFold de 5 folds (critério principal).
-- `make_cv("attack_group", attack=attack)`: cada tipo de ataque inteiro em um único fold, simulando os ataques inéditos do teste (diagnóstico de generalização).
-- `ExperimentLog`: executa a CV, mede F1-macro (média e desvio), acurácia balanceada, acurácia e F1 por classe, e grava em `results/experiments.csv`. Configurações já executadas são puladas (cache). `leaderboard()` devolve a tabela comparativa ordenada.
-- `final_report(y_true, y_pred)`: métricas oficiais e matriz de confusão (absoluta e normalizada) para a Etapa 4.
+- `cross_validate_pipeline`: CV estratificada e **agrupada por duplicata**, pontuada só em linhas únicas e sem conflito, com o limiar de cada fold aprendido nos demais. `f1_macro_noisy` registra o valor com tudo incluído, como contraste.
+- `ExperimentLog`: executa a CV e grava em `results/experiments.csv`. Configurações já executadas são puladas (o cache considera também os hiperparâmetros e a versão dos dados). `leaderboard()` devolve a tabela comparativa ordenada.
+- `validation_report(y_true, y_pred)`: métricas e matriz de confusão das previsões OOF. O teste não tem rótulos, então não há relatório de teste.
 
 ### `decision.py` — ajuste para F1-macro
-`WeightedDecisionClassifier` aprende pesos por classe sobre probabilidades *out-of-fold* do treino e desloca a decisão a favor das classes raras (R2L, U2R). Usa apenas o treino, portanto é legítimo.
+`ThresholdClassifier` aprende o limiar de decisão com probabilidades *out-of-fold* do treino, e `cross_val_proba` produz essas previsões sem separar cópias. Usa apenas o treino, portanto é legítimo.
 
-### `models.py` — adaptadores
-`EncodedLabelClassifier` permite usar o XGBoost (que exige rótulos numéricos) com os rótulos textuais do projeto, mantendo compatibilidade com `ExperimentLog` e com as métricas por classe.
+### `models.py` — catálogo e adaptadores
+`make_model(nome)` cria cada algoritmo com a semente do projeto. `EncodedLabelClassifier` permite usar o XGBoost (que exige rótulos numéricos) com os rótulos textuais.
 
 ### `audit.py` — auditoria de vazamento
 - `association_with_target(df, y)`: associação de cada atributo com a classe (eta, V de Cramér, informação mútua), atendendo à Seção 7 do enunciado.
-- `python -m nslkdd.audit notebooks/*.ipynb`: varredura estática que aponta **ERRO** (ex.: `fit` no teste, concatenação treino+teste) e **ALERTA** (ex.: reamostragem fora do pipeline, uso de `difficulty`, uso do teste fora do notebook 04).
+- `feature_set_gain(frame, y, groups, conjuntos)`: quanto cada conjunto de colunas rende em CV; é o teste mais direto para colunas suspeitas.
+- `python -m nslkdd.audit notebooks/*.ipynb`: varredura estática que aponta **ERRO** (ex.: `fit` no teste, concatenação treino+teste, uso da base original) e **ALERTA** (ex.: reamostragem fora do pipeline, colunas de vazamento citadas, CV sem grupos, uso do teste fora do notebook 04).
 
 ### `explain.py` — explicabilidade
 | Função | O que produz |
 |---|---|
 | `model_importances` | Importância nativa do modelo (árvores/ensembles) |
 | `permutation_importances` | Importância por permutação nos atributos originais, medida em F1-macro |
-| `shap_values` | Valores SHAP (global e local, por classe) |
+| `shap_values` | Valores SHAP (global e local) |
 | `surrogate_rules` | Árvore rasa que imita o modelo: regras legíveis e fidelidade |
 
 ---
@@ -188,8 +198,8 @@ Vantagens: edição mais rápida e segura que JSON, diffs legíveis e garantia d
 ### `tests/`
 | Arquivo | Verifica |
 |---|---|
-| `test_data.py` | Tamanhos do treino/teste, mapeamento completo das classes, bloqueio do teste, ausência de `difficulty` e `attack` em `X` |
-| `test_leakage.py` | Samplers não alteram a predição, todas as codificações funcionam, o scanner detecta padrões de vazamento |
+| `test_data.py` | Tamanhos, padronização do texto, bloqueio do teste, esquema do teste, só os 41 atributos em `X`, duplicatas e conflitos, derivadas exatas, validação da submissão |
+| `test_leakage.py` | Samplers não alteram a predição, codificações e imputações, regras de domínio, redundância, CV nunca separa cópias, limiar, cache, modelo salvo, explicabilidade, colunas de vazamento inalcançáveis, scanner |
 
 Executar com `.venv/Scripts/python -m pytest`.
 
@@ -208,7 +218,8 @@ Etapa 2 (07/11)  build_pipeline + ExperimentLog ► notebooks/02_preprocessament
 Etapa 3 (21/11)  ≥3 algoritmos + tuning por CV ► notebooks/03_modelagem.ipynb
                  escolha do modelo ───────────► results/final_config.json (congelado)
 Etapa 4 (28/11)  load_test(final_evaluation=True) uma única vez
-                 métricas + explicabilidade ──► notebooks/04_avaliacao_final.ipynb
+                 submissão ───────────────────► results/submissao.csv
+                 estimativa OOF + explicabilidade ► notebooks/04_avaliacao_final.ipynb
                  relatório + apresentação ────► reports/
 ```
 
@@ -225,8 +236,25 @@ Antes de cada entrega:
 
 1. O teste só é carregado com `final_evaluation=True`, apenas no notebook 04.
 2. Todo pré-processamento com parâmetros aprendidos está dentro do pipeline.
-3. `difficulty` nunca entra como atributo.
-4. Nenhuma linha do teste é removida ou alterada.
-5. Escolhas de técnica, hiperparâmetros e pesos de decisão usam apenas CV no treino.
-6. O modelo final é congelado em `final_config.json` antes da avaliação no teste.
-7. Testes automatizados e a auditoria verificam esses pontos continuamente.
+3. Só os 41 atributos de rede entram no modelo: as 3 colunas de vazamento e as 5 derivadas ficam de fora por construção.
+4. A CV é agrupada por duplicata, então cópias não atravessam a divisão treino/validação.
+5. Nenhuma linha do teste é removida, alterada ou reordenada.
+6. Escolhas de técnica, hiperparâmetros e limiar de decisão usam apenas CV no treino.
+7. O modelo final é congelado em `final_config.json` antes da submissão.
+8. `data/raw/` não é usada, pois contém os rótulos do teste.
+9. Testes automatizados e a auditoria verificam esses pontos continuamente.
+
+---
+
+## 8. O que mudou com a base nova
+
+| Antes (NSL-KDD original) | Agora | Consequência no projeto |
+|---|---|---|
+| 5 classes | binário (`normal`/`anomaly`) | métricas, `CLASSES`, limiar em vez de pesos por classe |
+| KDDTest+ com rótulos | teste sem rótulos, submissão por arquivo | `write_submission`; estimativa por OOF |
+| `attack`, `difficulty` | não existem | CV por grupo de ataque removida |
+| sem ausentes | 94% das linhas com algum ausente | eixo `imputation`; NaN nativo nas árvores |
+| sem valores impossíveis | 8% das linhas | `DomainCleaner` |
+| 16 duplicatas | 13.067 cópias e 1.702 conflitos | CV agrupada, `evaluation_mask`, `relabel_model` |
+| categorias limpas | grafias variantes | `normalize_text` na carga |
+| 41 atributos | + 5 derivadas e 3 de vazamento | `FEATURES` continua com 41; as demais ficam fora |

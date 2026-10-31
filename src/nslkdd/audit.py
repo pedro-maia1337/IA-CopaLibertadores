@@ -14,7 +14,13 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.feature_selection import mutual_info_classif
+from sklearn.metrics import roc_auc_score
+
+from . import config
+from .data import duplicate_groups, evaluation_mask
+from .decision import best_threshold, cross_val_proba, macro_f1_curve
 
 
 def _cramers_v(x, y):
@@ -46,29 +52,62 @@ def association_with_target(df, y, alert=0.9, random_state=42):
             discrete = True
         else:
             strength, kind = _correlation_ratio(x, y), "eta"
-            mi_input, discrete = x.to_frame(), False
+            # A informação mútua não aceita NaN: a mediana é só para esta medida descritiva.
+            mi_input, discrete = x.fillna(x.median()).to_frame(), False
         mi = mutual_info_classif(mi_input, y, discrete_features=discrete,
                                  random_state=random_state)[0]
         rows.append({"atributo": col, "medida": kind, "associacao": round(strength, 4),
-                     "info_mutua": round(float(mi), 4), "n_valores": x.nunique()})
+                     "info_mutua": round(float(mi), 4), "n_valores": x.nunique(),
+                     "ausentes": round(float(x.isna().mean()), 4)})
     out = pd.DataFrame(rows).sort_values("associacao", ascending=False, ignore_index=True)
     out["alerta"] = out["associacao"] >= alert
     return out
 
 
+def feature_set_gain(frame, y, groups, feature_sets, n_splits=5, n_jobs=-1):
+    """Quanto cada conjunto de colunas rende em CV (mesmo modelo, mesma validação).
+
+    É o teste de vazamento mais direto: colunas que explicam o rótulo sem depender do
+    tráfego, ou que elevam muito o F1 sobre os atributos de rede, merecem suspeita.
+    """
+    mask = evaluation_mask(groups, y)
+    is_positive = y.to_numpy() == config.POSITIVE
+    rows = []
+    for name, columns in feature_sets.items():
+        X = frame[columns].copy()
+        categorical = [c for c in columns if not pd.api.types.is_numeric_dtype(X[c])]
+        X[categorical] = X[categorical].astype("category")
+        model = HistGradientBoostingClassifier(max_iter=300, learning_rate=0.06,
+                                               categorical_features="from_dtype",
+                                               random_state=config.RANDOM_STATE)
+        proba, _ = cross_val_proba(model, X, y, groups, n_splits, n_jobs=n_jobs)
+        threshold = best_threshold(proba[mask], is_positive[mask])
+        curve = macro_f1_curve(proba[mask], is_positive[mask], np.array([threshold]))
+        rows.append({"conjunto": name, "n_colunas": len(columns),
+                     "f1_macro_cv": round(float(curve[0]), 4),
+                     "auc_cv": round(roc_auc_score(is_positive[mask], proba[mask]), 4)})
+    return pd.DataFrame(rows)
+
+
+_LEAKY = "|".join(config.LEAKY_COLUMNS)
 PATTERNS = [
     ("ERRO", r"\.(fit|fit_transform|fit_resample|partial_fit)\([^)]*\b\w*test\b",
      "Ajuste (fit) usando dados de teste."),
     ("ERRO", r"concat\([^)]*test", "Concatenação treino+teste antes do pré-processamento."),
+    ("ERRO", r"KDDTrain|KDDTest",
+     "Base original: contém os rótulos do teste atual, não pode ser usada."),
     ("ALERTA", r"train_test_split\(", "Re-split do teste é proibido: confirme que é um "
-     "holdout estratificado só dentro do KDDTrain+."),
-    ("ERRO", r"train_test_split\([^)]*\b\w*test\b", "train_test_split envolvendo o KDDTest+."),
-    ("ALERTA", r"['\"]difficulty['\"]", "Atributo 'difficulty' citado: deve ser descartado."),
+     "holdout estratificado só dentro do treino."),
+    ("ERRO", r"train_test_split\([^)]*\b\w*test\b", "train_test_split envolvendo o teste."),
+    ("ALERTA", rf"['\"]({_LEAKY})['\"]|LEAKY_COLUMNS",
+     "Coluna de vazamento citada: só pode ser usada para demonstrar o vazamento."),
     ("ALERTA", r"\bfit_resample\(", "Reamostragem fora do Pipeline: se feita antes da CV, "
      "os folds de validação recebem amostras sintéticas (vazamento)."),
     ("ALERTA", r"(Scaler|Encoder|Imputer|PCA|SelectKBest)\([^)]*\)\.fit(_transform)?\(",
      "Transformador ajustado fora do Pipeline: confirme que não é antes da CV."),
-    ("ALERTA", r"(?<!def )load_test(_frame)?\(", "Uso do KDDTest+: só permitido no notebook 04."),
+    ("ALERTA", r"\bStratifiedKFold\(|\bKFold\(|\bcross_val_score\(",
+     "CV sem grupos separa cópias entre folds (vazamento): use cross_val_proba/ExperimentLog."),
+    ("ALERTA", r"(?<!def )load_test(_frame)?\(", "Uso do teste: só permitido no notebook 04."),
 ]
 
 

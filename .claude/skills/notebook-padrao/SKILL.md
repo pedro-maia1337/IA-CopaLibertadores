@@ -18,7 +18,7 @@ Critério "Clareza" (10%) e o entregável nº 1 exigem notebook **comentado e re
    counts = y.value_counts()
    ```
 2. Gerar e executar: `.venv/Scripts/python tools/py2nb.py notebooks/src/01_eda.py notebooks/01_eda.ipynb --execute`
-   - Falhou? Corrigir a fonte `.py` e repetir. Iterações rápidas: rodar a fonte como script (`.venv/Scripts/python notebooks/src/01_eda.py`) antes de converter.
+   - Falhou? Corrigir a fonte `.py` e repetir. Iterações rápidas: rodar a fonte como script (`.venv/Scripts/python notebooks/src/01_eda.py`) antes de converter. No Windows, defina `MPLBACKEND=Agg` nesse modo, senão o matplotlib falha ao abrir a janela (`Tcl`).
    - Execuções longas (Etapas 2–3): rodar em background e conferir o resultado depois.
 3. Auditar: `.venv/Scripts/python -m nslkdd.audit notebooks/NN_nome.ipynb` (zero ERRO).
 4. O `.ipynb` executado (com saídas) é o entregável; a fonte `.py` é a verdade para edições.
@@ -29,13 +29,14 @@ Critério "Clareza" (10%) e o entregável nº 1 exigem notebook **comentado e re
   ```python
   import warnings; warnings.filterwarnings("ignore", category=FutureWarning)
   import numpy as np, pandas as pd, matplotlib.pyplot as plt, seaborn as sns, sklearn, imblearn
-  from nslkdd import config, load_train, load_train_frame, build_pipeline, ExperimentLog
+  from nslkdd import config, load_train, build_pipeline, ExperimentLog
+  X, y, groups = load_train()
   np.random.seed(config.RANDOM_STATE)
   pd.set_option("display.max_columns", 60)
   sns.set_theme(style="whitegrid", context="notebook")
   print({m.__name__: m.__version__ for m in (np, pd, sklearn, imblearn)})
   ```
-- Markdown: "Política de dados" — treino para decisões; teste só no notebook 04.
+- Markdown: "Política de dados" — treino para decisões; teste só no notebook 04; `data/raw/` não é usada.
 
 ## Regras de escrita
 - Seções numeradas (`## 1.`, `### 1.1`) espelhando a skill da etapa; índice no topo.
@@ -51,5 +52,5 @@ Critério "Clareza" (10%) e o entregável nº 1 exigem notebook **comentado e re
 - [ ] `python -m nslkdd.audit` sem ERRO; ALERTAS justificados em markdown.
 - [ ] `python -m pytest` passando.
 - [ ] Tabelas comparativas vêm de `ExperimentLog.leaderboard()` (não digitadas à mão).
-- [ ] Conclusões batem com os números exibidos.
+- [ ] Conclusões batem com os números exibidos. Escreva o texto depois de ver a saída executada.
 - [ ] `requirements-lock.txt` atualizado se instalou algo (`.venv/Scripts/python -m pip freeze > requirements-lock.txt`).
