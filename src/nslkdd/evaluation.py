@@ -14,8 +14,9 @@ from . import config
 from .data import evaluation_mask
 from .decision import best_threshold, cross_val_proba
 
-METRICS = ["f1_macro", "f1_normal", "f1_anomaly", "precision_anomaly", "recall_anomaly",
-           "balanced_accuracy", "accuracy"]
+# A professora divulga precisão, recall e F1 por classe (enunciado, Seção 3.1); o ranking é por F1-macro.
+METRICS = ["f1_macro", "f1_normal", "f1_anomaly", "precision_normal", "recall_normal",
+           "precision_anomaly", "recall_anomaly", "balanced_accuracy", "accuracy"]
 
 
 def binary_metrics(is_positive, predicted_positive):
@@ -28,6 +29,7 @@ def binary_metrics(is_positive, predicted_positive):
     f1_neg = 2 * tn / max(2 * tn + fp + fn, 1)
     recall, specificity = tp / max(tp + fn, 1), tn / max(tn + fp, 1)
     return {"f1_macro": (f1_pos + f1_neg) / 2, "f1_normal": f1_neg, "f1_anomaly": f1_pos,
+            "precision_normal": tn / max(tn + fn, 1), "recall_normal": specificity,
             "precision_anomaly": tp / max(tp + fp, 1), "recall_anomaly": recall,
             "balanced_accuracy": (recall + specificity) / 2,
             "accuracy": (tp + tn) / max(tp + tn + fp + fn, 1)}
@@ -124,7 +126,8 @@ class ExperimentLog:
             t = t[t["stage"] == stage]
         cols = cols or [c for c in t.columns if c.startswith("p_")] + [
             "model", "f1_macro_mean", "f1_macro_std", "f1_macro_05_mean", "f1_macro_noisy_mean",
-            "f1_anomaly_mean", "precision_anomaly_mean", "recall_anomaly_mean",
+            "f1_normal_mean", "f1_anomaly_mean", "precision_normal_mean", "recall_normal_mean",
+            "precision_anomaly_mean", "recall_anomaly_mean",
             "balanced_accuracy_mean", "threshold_mean", "cv_seconds"]
         return t[[c for c in cols if c in t.columns]].sort_values("f1_macro_mean", ascending=False)
 

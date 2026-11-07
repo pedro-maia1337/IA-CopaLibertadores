@@ -1,4 +1,6 @@
 """Leitura da base da competição, com proteção contra uso prematuro do teste."""
+import hashlib
+
 import numpy as np
 import pandas as pd
 
@@ -84,15 +86,45 @@ def load_test(final_evaluation: bool = False):
     return df[config.FEATURES].copy(), df[config.ID].copy()
 
 
-def write_submission(ids, y_pred, path=config.SUBMISSION_FILE) -> pd.DataFrame:
-    """Valida contra modelo_de_submissao.csv (mesmos ids, mesma ordem) e grava o CSV."""
+def _validate_submission(sub: pd.DataFrame) -> None:
+    """Regras da Seção 3.1 do enunciado, conferidas contra modelo_de_submissao.csv."""
     template = pd.read_csv(config.SUBMISSION_TEMPLATE)
-    sub = pd.DataFrame({config.ID: np.asarray(ids), config.SUBMISSION_TARGET: np.asarray(y_pred)})
+    if list(sub.columns) != [config.ID, config.SUBMISSION_TARGET]:
+        raise ValueError(f"Colunas devem ser {[config.ID, config.SUBMISSION_TARGET]}, não {list(sub.columns)}.")
+    if sub.isna().any().any():
+        raise ValueError("A submissão tem valores vazios.")
+    if sub[config.ID].duplicated().any():
+        raise ValueError("A submissão tem ids repetidos.")
     if len(sub) != len(template) or (sub[config.ID].to_numpy() != template[config.ID].to_numpy()).any():
         raise ValueError("Os ids não coincidem com modelo_de_submissao.csv (conjunto ou ordem).")
     invalid = set(sub[config.SUBMISSION_TARGET].unique()) - set(config.CLASSES)
     if invalid:
         raise ValueError(f"Previsões fora de {config.CLASSES}: {sorted(map(str, invalid))}")
+
+
+def check_submission(path=None) -> str:
+    """Relê o CSV gravado, valida o formato exigido e devolve o SHA-256 do arquivo.
+
+    O hash registrado no notebook prova que o arquivo enviado é o que o notebook gera.
+    """
+    path = path or config.SUBMISSION_FILE
+    _validate_submission(pd.read_csv(path, dtype={config.SUBMISSION_TARGET: str}))
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def write_submission(ids, y_pred, path=None) -> pd.DataFrame:
+    """Valida contra modelo_de_submissao.csv (mesmos ids, mesma ordem) e grava o CSV.
+
+    Sem `path`, grava em results/submissao_<TEAM_NUMBER>.csv (exige config.TEAM_NUMBER).
+    """
+    if path is None:
+        if config.SUBMISSION_FILE is None:
+            raise ValueError("Defina config.TEAM_NUMBER (grupo do Canvas) antes de gerar a submissão.")
+        path = config.SUBMISSION_FILE
+    sub = pd.DataFrame({config.ID: np.asarray(ids), config.SUBMISSION_TARGET: np.asarray(y_pred)})
+    _validate_submission(sub)
     path.parent.mkdir(parents=True, exist_ok=True)
-    sub.to_csv(path, index=False)
+    # Fim de linha fixo: o mesmo notebook gera os mesmos bytes (e o mesmo hash) em qualquer SO.
+    sub.to_csv(path, index=False, lineterminator="\n")
+    check_submission(path)
     return sub

@@ -69,6 +69,23 @@ def test_submission_rejects_wrong_ids_and_labels(tmp_path):
         data.write_submission(ids[::-1], ["normal"] * n, path)
     with pytest.raises(ValueError):
         data.write_submission(ids, ["DoS"] * n, path)
+    with pytest.raises(ValueError):
+        data.write_submission(ids, ["Normal"] * n, path)  # exige minúsculas
+    with pytest.raises(ValueError):
+        data.write_submission(ids, [None] * n, path)  # sem valores vazios
     sub = data.write_submission(ids, ["normal"] * n, path)
     assert list(pd.read_csv(path).columns) == [config.ID, config.SUBMISSION_TARGET]
     assert len(sub) == n
+    assert b"\r\n" not in path.read_bytes()
+    first = data.check_submission(path)
+    data.write_submission(ids, ["normal"] * n, path)
+    assert data.check_submission(path) == first  # mesma entrada, mesmos bytes
+
+
+def test_submission_file_follows_team_number_rule():
+    if config.TEAM_NUMBER is None:
+        assert config.SUBMISSION_FILE is None
+        with pytest.raises(ValueError):
+            data.write_submission([], [])
+    else:
+        assert config.SUBMISSION_FILE.name == f"submissao_{config.TEAM_NUMBER}.csv"

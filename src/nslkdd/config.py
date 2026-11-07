@@ -11,7 +11,9 @@ EXPERIMENT_LOG = RESULTS / "experiments.csv"
 TRAIN_FILE = DATA_DIR / "treino.csv"
 TEST_FILE = DATA_DIR / "teste_sem_rotulo.csv"
 SUBMISSION_TEMPLATE = DATA_DIR / "modelo_de_submissao.csv"
-SUBMISSION_FILE = RESULTS / "submissao.csv"
+# Número do grupo no Canvas. O enunciado (Seção 3.1) exige o nome submissao_<número_da_equipe>.csv.
+TEAM_NUMBER = 7
+SUBMISSION_FILE = RESULTS / f"submissao_{TEAM_NUMBER}.csv" if TEAM_NUMBER is not None else None
 
 RANDOM_STATE = 42
 

@@ -2,7 +2,7 @@
 
 Este documento explica como o projeto está organizado, o que cada arquivo faz e como as peças se encaixam ao longo das 4 etapas do trabalho.
 
-Em 31/10/2026 a base foi trocada por `data/new-database/`: o problema passou a ser **binário** (`normal`/`anomaly`), o teste não tem rótulos e a base traz ausentes, valores impossíveis, duplicatas com rótulos contraditórios e colunas de vazamento. O enunciado permaneceu o mesmo. Ver a Seção 8.
+Em 31/10/2026 a base foi trocada por `data/new-database/`: o problema passou a ser **binário** (`normal`/`anomaly`), o teste não tem rótulos e a base traz ausentes, valores impossíveis, duplicatas com rótulos contraditórios e colunas de vazamento. Em 07/11/2026 o enunciado foi atualizado para a base nova (Seção 3.1: formato e nome do arquivo de previsões). Ver a Seção 8.
 
 ---
 
@@ -45,7 +45,7 @@ IA-CopaLibertadores/
 │   ├── experiments.csv           Tabela comparativa acumulada (gerada automaticamente)
 │   ├── melhores_configuracoes.json  Melhor configuração por família (rodar_experimentos.py)
 │   ├── final_config.json         Configuração final congelada (gerada na Etapa 3)
-│   ├── submissao.csv             Arquivo entregue para o ranking (gerado na Etapa 4)
+│   ├── submissao_<N>.csv         Arquivo entregue para o ranking (gerado na Etapa 4; N = TEAM_NUMBER)
 │   ├── figures/                  Gráficos para notebooks e relatório
 │   └── models/                   Modelo final treinado (.joblib)
 ├── reports/
@@ -129,7 +129,8 @@ Caminhos do projeto, semente (`RANDOM_STATE = 42`), os 41 atributos permitidos (
 | `load_train()` | `X` (41 atributos), `y` (`normal`/`anomaly`), `groups` (grupo de duplicatas para a CV) |
 | `load_train_frame()` | DataFrame completo com as colunas novas (para EDA e auditoria) |
 | `load_test(final_evaluation=True)` | `X` e `ids` do teste; **sem o parâmetro, lança erro** |
-| `write_submission(ids, y_pred)` | Valida ids, ordem e rótulos contra o modelo e grava `results/submissao.csv` |
+| `write_submission(ids, y_pred)` | Valida colunas, ids (sem repetidos, mesma ordem), rótulos e vazios contra o modelo e grava `results/submissao_<N>.csv` |
+| `check_submission(path)` | Relê o CSV gravado, valida o formato da Seção 3.1 e devolve o SHA-256 (prova de reprodutibilidade) |
 | `duplicate_groups`, `conflict_mask`, `evaluation_mask` | Grupos de cópias, linhas contraditórias e linhas usadas para pontuar |
 
 A carga padroniza caixa e espaços dos categóricos, regra fixa por linha que não remove nada.
@@ -211,14 +212,14 @@ Texto extraído de todos os PDFs (enunciado e slides). Permite localizar rapidam
 ## 6. Fluxo de trabalho por etapa
 
 ```
-Etapa 1 (24/10)  EDA no treino ─────────────► notebooks/01_eda.ipynb
+Etapa 1 (01/11)  EDA no treino ─────────────► notebooks/01_eda.ipynb
                                                diagnóstico + plano da Etapa 2
 Etapa 2 (07/11)  build_pipeline + ExperimentLog ► notebooks/02_preprocessamento.ipynb
                  (um eixo de pré-processamento por vez, CV no treino)
 Etapa 3 (21/11)  ≥3 algoritmos + tuning por CV ► notebooks/03_modelagem.ipynb
                  escolha do modelo ───────────► results/final_config.json (congelado)
 Etapa 4 (28/11)  load_test(final_evaluation=True) uma única vez
-                 submissão ───────────────────► results/submissao.csv
+                 submissão ───────────────────► results/submissao_<N>.csv
                  estimativa OOF + explicabilidade ► notebooks/04_avaliacao_final.ipynb
                  relatório + apresentação ────► reports/
 ```

@@ -1,7 +1,7 @@
 # Detecção de Intrusão em Redes — NSL-KDD (base da competição)
 
 Trabalho em competição da disciplina de Inteligência Artificial (PUC Minas, Profa. Cristiane Neri Nobre).
-Classificação binária (`normal`, `anomaly`); métrica oficial: **F1-macro no conjunto de teste**, calculada pela professora a partir de `results/submissao.csv`.
+Classificação binária (`normal`, `anomaly`); métrica oficial: **F1-macro no conjunto de teste**, calculada pela professora a partir de `results/submissao_<N>.csv` (`N` = número da equipe, `config.TEAM_NUMBER`).
 
 ## Reproduzir
 ```bash
@@ -28,7 +28,7 @@ Verificações: `.venv/Scripts/python -m pytest` e `.venv/Scripts/python -m nslk
 | `docs/` | enunciado, slides da disciplina e versão em texto (`_txt/`) |
 | `src/nslkdd/` | carga, pipelines de pré-processamento, CV/registro de experimentos, limiar de decisão, auditoria de vazamento, explicabilidade |
 | `notebooks/` | entregáveis por etapa (`src/` = fontes .py) |
-| `results/` | `experiments.csv` (tabela comparativa), `final_config.json`, `submissao.csv`, figuras, modelos |
+| `results/` | `experiments.csv` (tabela comparativa), `final_config.json`, `submissao_<N>.csv`, figuras, modelos |
 | `reports/` | relatório, apresentação, declaração de uso de IA |
 | `tests/` | testes de dados e de vazamento |
 | `tools/` | conversão de notebooks e experimentos de referência |

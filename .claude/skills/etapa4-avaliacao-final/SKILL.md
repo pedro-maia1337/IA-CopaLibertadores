@@ -5,18 +5,20 @@ description: Etapa 4 (entrega 28/11) — gerar uma única vez a submissão do mo
 
 # Etapa 4 — Submissão final e explicabilidade
 
-Entregáveis: `notebooks/04_avaliacao_final.ipynb` (completo e reproduzível do início ao fim) e `results/submissao.csv`. Pré-requisito: `results/final_config.json` congelado na Etapa 3. Se não existir, **pare** e volte à Etapa 3.
+Entregáveis: `notebooks/04_avaliacao_final.ipynb` (completo e reproduzível do início ao fim) e `results/submissao_<N>.csv` (`N` = `config.TEAM_NUMBER`; se for `None`, pergunte o número do grupo no Canvas). Pré-requisito: `results/final_config.json` congelado na Etapa 3. Se não existir, **pare** e volte à Etapa 3.
 
 **O teste não tem rótulos.** Quem calcula o F1-macro é a professora. Não existe matriz de confusão no teste nem análise de erros no teste: toda métrica deste notebook vem de previsões out-of-fold do treino, e deve ser apresentada como **estimativa**.
 
 ## Protocolo (nesta ordem)
 1. Ler `final_config.json`; montar o pipeline com `build_pipeline(model, **pipeline_params)` e envolver em `ThresholdClassifier` (aprende o limiar via OOF agrupado no treino).
 2. Treinar no **`treino.csv` completo**. Salvar com `joblib.dump(..., config.MODELS / "final.joblib")`.
-3. Estimativa honesta: `cross_val_proba` + limiar + `validation_report` nas linhas de `evaluation_mask`. Mostrar também `f1_macro_noisy`, explicando por que ele não estima o teste (conflitos existem só por construção no treino).
+3. Estimativa honesta: `cross_val_proba` + limiar + `validation_report` nas linhas de `evaluation_mask`. Reporte precisão, recall e F1 **das duas classes** (é o que a professora divulga) e o F1-macro. Mostrar também `f1_macro_noisy`, explicando por que ele não estima o teste (conflitos existem só por construção no treino).
 4. Só então `X_te, ids = load_test(final_evaluation=True)`, uma vez, sem filtrar nem reordenar linhas.
-5. `y_pred = model.predict(X_te)`; `write_submission(ids, y_pred)` valida ids, ordem e rótulos e grava `results/submissao.csv`.
-6. Verificações sem usar rótulos: 24.333 linhas, sem nulos, proporção prevista de `anomaly` (só para detectar erro grosseiro; **não** ajustar o limiar por ela).
-7. Não reprocessar nem retunar depois de gerar a submissão. Se surgir ideia, ela vai para "trabalhos futuros". Se a submissão precisar ser refeita (ex.: bug), registrar o motivo no notebook e manter o mesmo modelo.
+5. `y_pred = model.predict(X_te)`; `write_submission(ids, y_pred)` valida colunas, ids, ordem, rótulos em minúsculas e vazios e grava `results/submissao_<N>.csv` (fim de linha `
+`, bytes determinísticos).
+6. Verificações sem usar rótulos: `print(check_submission())` (SHA-256 do arquivo; o mesmo hash vai para o relatório e deve bater com o arquivo enviado ao Canvas), 24.333 linhas, sem nulos, proporção prevista de `anomaly` (só para detectar erro grosseiro; **não** ajustar o limiar por ela).
+7. **Reprodutibilidade (Seção 3.1):** o notebook entregue precisa gerar exatamente o arquivo enviado. Reexecute o notebook do zero antes do envio e confira o hash. Nunca edite o CSV à mão.
+8. Não reprocessar nem retunar depois de gerar a submissão. Se surgir ideia, ela vai para "trabalhos futuros". Se a submissão precisar ser refeita (ex.: bug), registrar o motivo no notebook e manter o mesmo modelo.
 
 ## Explicabilidade do melhor modelo (requisito 7)
 ```python

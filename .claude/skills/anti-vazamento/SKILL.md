@@ -20,7 +20,7 @@ O enunciado reduz fortemente a nota metodológica de quem vazar, mesmo que fique
 | 8 | Target encoding de `service` sem cross-fitting | `TargetEncoder` do sklearn (cross-fitting interno) dentro do pipeline |
 | 9 | Remover ou reordenar linhas do teste, ou usar o teste para estimar imputação/estatísticas | Limpeza só no treino; o teste passa inteiro pelo pipeline já ajustado |
 | 10 | **Recuperar rótulos do teste em `data/raw/`** (a base original contém essas linhas) | Proibido e detectado pelo scanner (`KDDTrain`/`KDDTest` = ERRO). Usar como treino extra também vaza |
-| 11 | Pseudo-rótulos, validação adversária ou imputação com o teste | Proibidos: "toda decisão... usando apenas o conjunto de treino" (enunciado, Seção 3) |
+| 11 | Pseudo-rótulos, validação adversária ou imputação com o teste | Proibidos: "escolher o melhor modelo apenas por validação cruzada (ou split de validação) dentro do treino" (enunciado, Seção 3.1) |
 
 Limpeza fora do pipeline: só o que é regra fixa por linha, sem aprender nada dos dados, como padronizar texto (`normalize_text`, na carga). Remoção de duplicatas e conflitos usa o rótulo e vai em `redundancy=...`, por fold.
 

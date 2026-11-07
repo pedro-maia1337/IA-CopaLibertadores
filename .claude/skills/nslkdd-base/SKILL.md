@@ -5,7 +5,7 @@ description: Fatos verificados sobre a base da competição (treino.csv / teste_
 
 # Base da competição — o que é preciso saber
 
-A base foi trocada em 31/10/2026. O enunciado segue o mesmo, mas o problema mudou: agora é **binário**, com sujeira injetada e colunas de vazamento. Nada do NSL-KDD original (5 classes, `attack`, `difficulty`, CV por grupo de ataque, 17 ataques inéditos) vale aqui.
+A base foi trocada em 31/10/2026 e o enunciado foi atualizado em 07/11/2026. O problema mudou: agora é **binário**, com sujeira injetada e colunas de vazamento. Nada do NSL-KDD original (5 classes, `attack`, `difficulty`, CV por grupo de ataque, 17 ataques inéditos) vale aqui.
 
 ## Carregar (nunca reimplementar a leitura)
 ```python
@@ -15,7 +15,8 @@ df = load_train_frame()       # DataFrame completo, inclui colunas novas (só pa
 # Só no notebook 04:
 from nslkdd import load_test, write_submission
 X_te, ids = load_test(final_evaluation=True)
-write_submission(ids, y_pred)  # valida ids e rótulos contra modelo_de_submissao.csv
+write_submission(ids, y_pred)  # valida contra modelo_de_submissao.csv e grava results/submissao_<TEAM_NUMBER>.csv
+check_submission()             # relê, valida o formato da Seção 3.1 e devolve o SHA-256
 ```
 `config` expõe `FEATURES`, `CATEGORICAL`, `LOW_CARDINALITY`, `NUMERIC`, `BINARY`, `RATES`, `HEAVY_TAILED`, `DOMAIN_MAX`, `LEAKY_COLUMNS`, `DERIVED_COLUMNS`, `CLASSES`, `POSITIVE`, `RANDOM_STATE`.
 `load_*` padronizam o texto (caixa e espaços) e não removem linhas.
