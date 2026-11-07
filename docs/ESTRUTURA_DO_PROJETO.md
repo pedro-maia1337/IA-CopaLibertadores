@@ -43,7 +43,8 @@ IA-CopaLibertadores/
 │   └── *.ipynb                   Notebooks executados (entregáveis)
 ├── results/
 │   ├── experiments.csv           Tabela comparativa acumulada (gerada automaticamente)
-│   ├── melhores_configuracoes.json  Melhor configuração por família (rodar_experimentos.py)
+│   ├── melhores_configuracoes.json  Melhor configuração por família (notebook 02 / rodar_experimentos.py)
+│   ├── etapa2_resultados_por_eixo.csv  Tabela comparativa da Etapa 2, por eixo e família
 │   ├── final_config.json         Configuração final congelada (gerada na Etapa 3)
 │   ├── submissao_<N>.csv         Arquivo entregue para o ranking (gerado na Etapa 4; N = TEAM_NUMBER)
 │   ├── figures/                  Gráficos para notebooks e relatório
@@ -154,6 +155,9 @@ Como tudo está dentro do pipeline, a validação cruzada ajusta cada etapa **s�
 - `cross_validate_pipeline`: CV estratificada e **agrupada por duplicata**, pontuada só em linhas únicas e sem conflito, com o limiar de cada fold aprendido nos demais. `f1_macro_noisy` registra o valor com tudo incluído, como contraste.
 - `ExperimentLog`: executa a CV e grava em `results/experiments.csv`. Configurações já executadas são puladas (o cache considera também os hiperparâmetros e a versão dos dados). `leaderboard()` devolve a tabela comparativa ordenada.
 - `validation_report(y_true, y_pred)`: métricas e matriz de confusão das previsões OOF. O teste não tem rótulos, então não há relatório de teste.
+
+### `search.py` — busca por coordenadas (Etapa 2)
+Define os pontos de partida (`FAMILIES`), os eixos e opções (`AXES`) e a regra de decisão pré-declarada (`pick`: só troca a opção mais simples por ganho maior que 1 desvio-padrão). `coordinate_search(log, X, y, groups)` roda um eixo por vez e devolve as melhores configurações e a tabela longa. Usado pelo notebook 02 e por `tools/rodar_experimentos.py`, que assim compartilham o mesmo cache.
 
 ### `decision.py` — ajuste para F1-macro
 `ThresholdClassifier` aprende o limiar de decisão com probabilidades *out-of-fold* do treino, e `cross_val_proba` produz essas previsões sem separar cópias. Usa apenas o treino, portanto é legítimo.

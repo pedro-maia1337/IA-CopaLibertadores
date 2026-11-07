@@ -15,62 +15,10 @@ from sklearn.model_selection import ParameterSampler
 
 from nslkdd import ExperimentLog, build_pipeline, config, load_train
 from nslkdd.models import SoftVote, make_model
+from nslkdd.search import FOLD_JOBS, coordinate_search, threads
 
 warnings.filterwarnings("ignore")
 BEST_FILE = config.RESULTS / "melhores_configuracoes.json"
-FOLD_JOBS = 5
-
-TREE_START = {"redundancy": "none", "domain": "nan", "imputation": "none", "scaling": "none",
-              "log_transform": False, "service_encoding": "ordinal",
-              "categorical_encoding": "ordinal"}
-FAMILIES = {
-    "HGB_native": dict(TREE_START),
-    "RF": {**TREE_START, "imputation": "median", "service_encoding": "onehot",
-           "categorical_encoding": "onehot"},
-    "MLP": {"redundancy": "none", "domain": "nan", "imputation": "median", "scaling": "standard",
-            "log_transform": True, "service_encoding": "onehot"},
-}
-# Primeira opção de cada eixo = a mais simples (referência da regra de decisão).
-REDUNDANCY = [{"redundancy": v} for v in
-              ["none", "drop_duplicates", "drop_inconsistent", "majority_label", "relabel_model"]]
-DOMAIN = [{"domain": v} for v in ["nan", "none", "clip"]]
-SERVICE = [{"service_encoding": v} for v in ["onehot", "onehot_rare", "frequency", "target"]]
-BALANCE = [{"balancing": "none"}, {"balancing": "class_weight"},
-           {"balancing": "ros", "min_count": 10000}, {"balancing": "rus", "max_count": 10000},
-           {"balancing": "smote", "min_count": 10000},
-           {"balancing": "borderline_smote", "min_count": 10000},
-           {"balancing": "smote_tomek", "min_count": 10000},
-           {"balancing": "hybrid", "min_count": 5000, "max_count": 20000}]
-REDUCE = [{"reduction": "none"}, {"reduction": "pca"}, {"reduction": "kbest_f", "reduction_k": 30},
-          {"reduction": "kbest_mi", "reduction_k": 30}, {"reduction": "tree_select"}]
-AXES = {
-    "HGB_native": [
-        ("redundancia", REDUNDANCY), ("dominio", DOMAIN),
-        ("imputacao", [{"imputation": "none"}, {"imputation": "median"},
-                       {"imputation": "median_indicator"}]),
-        ("balanceamento", [o for o in BALANCE if o["balancing"] in ("none", "class_weight")]),
-    ],
-    "RF": [
-        ("redundancia", REDUNDANCY),
-        ("imputacao", [{"imputation": "median"}, {"imputation": "none"},
-                       {"imputation": "median_indicator"}, {"imputation": "mean"}]),
-        ("codificacao", SERVICE + [{"service_encoding": "ordinal"}]),
-        ("balanceamento", BALANCE), ("reducao", REDUCE),
-    ],
-    "MLP": [
-        ("redundancia", REDUNDANCY[:3]), ("dominio", DOMAIN),
-        ("imputacao", [{"imputation": "median"}, {"imputation": "mean"},
-                       {"imputation": "median_indicator"}, {"imputation": "iterative"}]),
-        ("codificacao", SERVICE),
-        ("escala", [{"scaling": "standard", "log_transform": True},
-                    {"scaling": "standard", "log_transform": False},
-                    {"scaling": "minmax", "log_transform": True},
-                    {"scaling": "robust", "log_transform": True},
-                    {"scaling": "quantile", "log_transform": False}]),
-        ("balanceamento", [o for o in BALANCE if o["balancing"] != "class_weight"]),
-        ("reducao", REDUCE),
-    ],
-}
 SEARCH = {
     "HGB_native": {"max_iter": [200, 300, 500, 800], "learning_rate": [0.02, 0.04, 0.06, 0.1],
                    "max_leaf_nodes": [15, 31, 63], "min_samples_leaf": [5, 10, 20, 40],
@@ -86,39 +34,8 @@ SEARCH = {
 N_SEARCH = {"HGB_native": 12, "XGB": 12, "RF": 6, "MLP": 6}
 
 
-def threads(name):
-    return 3 if name in ("RF", "ET", "XGB", "KNN") else 1
-
-
-def pick(results, options):
-    """Mantém a primeira opção salvo ganho maior que 1 dp sobre ela."""
-    reference = results[0]
-    best, chosen = reference, options[0]
-    for result, option in zip(results[1:], options[1:]):
-        if (result["f1_macro_mean"] > best["f1_macro_mean"]
-                and result["f1_macro_mean"] - reference["f1_macro_mean"] > reference["f1_macro_std"]):
-            best, chosen = result, option
-    return chosen, best
-
-
 def etapa2(log, X, y, groups):
-    best = {}
-    for family, start in FAMILIES.items():
-        params = dict(start)
-        for axis, options in AXES[family]:
-            results = []
-            for option in options:
-                model = make_model(family, threads(family))
-                r = log.run(f"etapa2_{axis}", family, model, X, y, groups, {**params, **option},
-                            n_jobs=FOLD_JOBS)
-                print(f"{family:11s} {axis:13s} {option} -> {r['f1_macro_mean']:.4f} "
-                      f"± {r['f1_macro_std']:.4f} (bruto {r['f1_macro_noisy_mean']:.4f}, "
-                      f"{r['cv_seconds']:.0f}s)", flush=True)
-                results.append(r)
-            chosen, top = pick(results, options)
-            params.update(chosen)
-            print(f"  => {axis}: {chosen} ({top['f1_macro_mean']:.4f})", flush=True)
-        best[family] = params
+    best, _ = coordinate_search(log, X, y, groups)
     BEST_FILE.write_text(json.dumps(best, indent=2, ensure_ascii=False), encoding="utf-8")
     return best
 

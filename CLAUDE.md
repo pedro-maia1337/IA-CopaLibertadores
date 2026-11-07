@@ -48,7 +48,7 @@ data/new-database/   treino.csv, teste_sem_rotulo.csv, modelo_de_submissao.csv (
 data/raw/            NSL-KDD original: fora de uso (regra 8)
 docs/enunciado/      PDF do enunciado          docs/material/  slides da disciplina
 docs/_txt/           texto extraído (use Grep para citar o material da professora)
-src/nslkdd/          config, data, preprocessing, models, evaluation, decision, audit, explain
+src/nslkdd/          config, data, preprocessing, models, evaluation, decision, search, audit, explain
 notebooks/src/       fontes .py dos notebooks  notebooks/  .ipynb executados (entregáveis)
 results/             experiments.csv, final_config.json, submissao_<N>.csv, figures/, models/
 reports/             relatório (3–5 págs) e apresentação
