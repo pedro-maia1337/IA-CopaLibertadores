@@ -17,6 +17,7 @@
 \usepackage{xcolor}
 \usepackage[colorlinks=true,linkcolor=blue!55!black,urlcolor=blue!55!black]{hyperref}
 \usepackage{parskip}
+\usepackage[colorlinks=true, linkcolor=blue, urlcolor=blue]{hyperref}
 
 % Blocos de saída do notebook e de código para copiar.
 \DefineVerbatimEnvironment{saida}{Verbatim}{fontsize=\scriptsize,frame=leftline,framerule=1.5pt,rulecolor=\color{gray!60},xleftmargin=4pt}
@@ -27,15 +28,19 @@
 \setlength{\LTpost}{6pt}
 
 \title{Etapa 1 --- Análise exploratória e diagnóstico da base}
-\author{Equipe: \emph{a preencher}\\[2pt]
+\author{Equipe:\\[2pt]
+Gabriel Egídio Santos Beloni\\
+Gabriel Evangelista Massara\\
+Pedro Henrique Cardoso Maia\\
+Pedro Tinoco Lanna\\[4pt]
 \small Disciplina de Inteligência Artificial --- Profa. Cristiane Neri Nobre\\
-\small Trabalho em competição: Detecção de Intrusão em Redes (NSL-KDD)}
-\date{Base atualizada em 31/10/2026}
-
+\small Trabalho em competição: Detecção de Intrusão em Redes (NSL-KDD)\\[4pt]
+\small \textbf{Link Colab:} \href{https://colab.research.google.com/drive/1wmBIFtCfOWC75ihG_dJpAMJjheCWAftz?usp=sharing}{Acessar Notebook no Google Colab}\\
+\small \textbf{Execução do Notebook:} \href{https://youtu.be/Qd1Tmvogv-A}{Assistir Vídeo no YouTube}}
+\date{}
 \begin{document}
 \shorthandoff{"}
 \maketitle
-\noindent Este documento resume o notebook \texttt{notebooks/01\_eda.ipynb}. As tabelas e saídas são as do notebook executado; o texto foi reescrito de forma mais direta e o código foi omitido.
 
 \tableofcontents
 \clearpage
@@ -669,44 +674,15 @@ Antes de comparar técnicas, precisamos de uma régua confiável. Com 19\% de c�
 
 A diferença é pequena (+0,002), da ordem da variação entre folds, então não dá para dizer que ela distorceria uma comparação. O argumento é de correção: a validação agrupada elimina esse problema por construção e não custa nada. Por isso, o protocolo do trabalho usa \texttt{StratifiedGroupKFold} com o grupo de duplicatas, para que cópias nunca fiquem em lados opostos. A pontuação considera \textbf{uma linha por grupo, sem conflitos} (\texttt{evaluation\_mask}), enquanto \texttt{f1\_macro\_noisy} registra o valor com tudo incluído. O limiar de decisão é sempre escolhido nos outros folds, nunca naquele que está sendo pontuado.
 
-\section{Diagnóstico e plano para a Etapa 2}
+\section*{Declaração de uso de Inteligência Artificial}
+\addcontentsline{toc}{section}{Declaração de uso de Inteligência Artificial}
 
-A tabela abaixo reúne os problemas encontrados, as evidências e o que faremos com cada um.
-
-{\footnotesize\setlength{\tabcolsep}{4pt}
-\begin{longtable}{>{\raggedright\arraybackslash}p{0.20\linewidth}>{\raggedright\arraybackslash}p{0.27\linewidth}>{\raggedright\arraybackslash}p{0.27\linewidth}>{\raggedright\arraybackslash}p{0.17\linewidth}}
-\caption{Diagnóstico por problema (igual ao notebook).}\\
-\toprule
-\textbf{Problema} & \textbf{Evidência (treino)} & \textbf{Técnica(s) a comparar} & \textbf{Por quê} \\
-\midrule
-\endfirsthead
-\multicolumn{4}{l}{\textit{(continuação da Tabela \thetable)}}\\
-\toprule
-\textbf{Problema} & \textbf{Evidência (treino)} & \textbf{Técnica(s) a comparar} & \textbf{Por quê} \\
-\midrule
-\endhead
-\bottomrule
-\endlastfoot
-Vazamento & \texttt{score\_ids\_legado}, \texttt{tipo\_alerta\_soc}, \texttt{tempo\_resposta\_analista\_min}: F1 alto sem nenhum dado de rede & \textbf{remover} & posteriores ao evento; cópias ruidosas do rótulo \\
-Colunas derivadas & 5 cópias exatas, mesmos ausentes & \textbf{remover} & redundantes, não recuperam nada \\
-Rótulos contraditórios & 1.702 grupos (3.730 linhas) & manter, remover duplicatas, remover inconsistentes, maioria, reclassificar por modelo & requisito 1; ruído de rótulo \\
-Cópias & 19\% das linhas & CV agrupada + redundância por fold & evitam vazamento entre folds \\
-Grafias diferentes & \texttt{TCP}/\texttt{tcp}, \texttt{SF}/\texttt{sf}, \texttt{http } & padronização na carga & mesma categoria \\
-Ausentes (94\% das linhas) & 24 atributos; até 40\% & NaN nativo, média, mediana, mediana + indicador, iterativa & linhas não podem ser descartadas \\
-Ausência MNAR & \texttt{dst\_host\_serror\_rate} & NaN nativo ou indicador & a mediana apagaria o sinal \\
-Valores impossíveis & taxas > 1, contagens multiplicadas, negativos & ausente, saturar, manter & erro de medição, não ataque \\
-Desbalanceamento & 5,8\% de \texttt{anomaly} (16:1) & \texttt{class\_weight}, ROS, RUS, SMOTE e variantes, híbrido & requisito 2 \\
-Acurácia enganosa & ``tudo normal'': 94\% de acurácia, F1-macro 0,485 & F1-macro + limiar OOF & métrica oficial \\
-\texttt{service} com 67 categorias & cauda longa & one-hot, raras agrupadas, frequência, target, nativa & requisito 3 \\
-Cauda longa & assimetria alta em volumes & \texttt{log1p} + Standard/MinMax/Robust/Quantile & requisito 4; afeta MLP/KNN/SMOTE \\
-Outliers legítimos & 14,6\% das linhas, 11,8\% das anomalias & \textbf{não} eliminar por regra estatística & tráfego real; perderia positivos raros \\
-Atributos correlacionados & grupos serror/rerror & PCA, SelectKBest, seleção por árvores & requisito 5 \\
-Atributo constante & \texttt{num\_outbound\_cmds} & remover & sem informação \\
-\end{longtable}
-}
-
-Vale reforçar que todo passo que aprende algo com os dados fica \textbf{dentro do pipeline} e é ajustado apenas nos folds de treino da validação cruzada.
-
-Por fim, a auditoria \texttt{python -m nslkdd.audit notebooks/01\_eda.ipynb} retorna \textbf{0 erros}. Os alertas que aparecem são esperados: as colunas de vazamento só são citadas para demonstrar o problema e não entram em nenhum \texttt{X} de modelo final.
+Declaramos que a ferramenta de Inteligência Artificial Claude
+foi utilizada como apoio à revisão crítica das análises e
+dos procedimentos desenvolvidos pela equipe, bem como à
+formatação e ao aprimoramento da redação deste relatório,
+com o objetivo de verificar a consistência do trabalho
+realizado e melhorar a clareza, a organização e a
+apresentação textual das informações.
 
 \end{document}
