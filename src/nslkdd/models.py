@@ -39,6 +39,43 @@ class EncodedLabelClassifier(BaseEstimator, ClassifierMixin):
         return self.estimator_.feature_importances_
 
 
+class NativeCategoricalBoost(BaseEstimator, ClassifierMixin):
+    """LightGBM/CatBoost com protocol_type, service e flag como categorias nativas.
+
+    Recebe a saída do pré-processador (DataFrame com os categóricos já em códigos ordinais),
+    converte essas colunas para inteiros e informa ao modelo quais são categóricas. Codifica
+    os rótulos internamente, como EncodedLabelClassifier.
+    """
+
+    def __init__(self, estimator, kind):
+        self.estimator = estimator
+        self.kind = kind
+
+    def _cats(self, X):
+        X = X.copy()
+        cats = [c for c in config.CATEGORICAL if c in X.columns]
+        X[cats] = X[cats].astype(int)
+        return X, cats
+
+    def fit(self, X, y):
+        X, cats = self._cats(X)
+        self.encoder_ = LabelEncoder().fit(y)
+        self.classes_ = self.encoder_.classes_
+        key = "categorical_feature" if self.kind == "lgbm" else "cat_features"
+        self.estimator_ = clone(self.estimator).fit(X, self.encoder_.transform(y), **{key: cats})
+        return self
+
+    def predict_proba(self, X):
+        return self.estimator_.predict_proba(self._cats(X)[0])
+
+    def predict(self, X):
+        return self.classes_[self.predict_proba(X).argmax(axis=1)]
+
+    @property
+    def feature_importances_(self):
+        return self.estimator_.feature_importances_
+
+
 class SoftVote(BaseEstimator, ClassifierMixin):
     """Média das probabilidades de vários pipelines já montados.
 
@@ -89,6 +126,19 @@ def make_model(name, threads=1, **params):
             "n_estimators": 600, "learning_rate": 0.05, "max_depth": 7, "subsample": 0.8,
             "colsample_bytree": 0.7, "tree_method": "hist", "n_jobs": threads,
             "random_state": rs, "eval_metric": "logloss", **params}))
+    if name == "LGBM":  # fora da disciplina (boosting por histogramas, crescimento por folha)
+        from lightgbm import LGBMClassifier
+
+        return NativeCategoricalBoost(LGBMClassifier(**{
+            "n_estimators": 600, "learning_rate": 0.05, "num_leaves": 31, "subsample": 0.8,
+            "subsample_freq": 1, "colsample_bytree": 0.7, "n_jobs": threads, "random_state": rs,
+            "verbose": -1, **params}), "lgbm")
+    if name == "CatBoost":  # fora da disciplina (boosting com árvores simétricas)
+        from catboost import CatBoostClassifier
+
+        return NativeCategoricalBoost(CatBoostClassifier(**{
+            "iterations": 1000, "learning_rate": 0.08, "depth": 6, "thread_count": threads,
+            "random_seed": rs, "verbose": 0, "allow_writing_files": False, **params}), "catboost")
     if name == "MLP":
         return MLPClassifier(**{"hidden_layer_sizes": (128, 64), "alpha": 1e-3, "max_iter": 60,
                                 "early_stopping": True, "random_state": rs, **params})

@@ -203,3 +203,28 @@ def test_association_handles_missing():
     out = audit.association_with_target(df[["src_bytes", "service", "tipo_alerta_soc"]].iloc[:5000],
                                         df[config.TARGET].iloc[:5000])
     assert out["info_mutua"].notna().all()
+
+
+def test_feature_builder_is_row_wise_and_stateless(sample):
+    from nslkdd.preprocessing import FeatureBuilder
+
+    X, _, _ = sample
+    fb = FeatureBuilder().fit(X.iloc[:100])
+    full = fb.transform(X.iloc[:500])
+    # o resultado de uma linha não depende das outras linhas nem do conjunto de ajuste
+    alone = FeatureBuilder().fit(X.iloc[400:]).transform(X.iloc[[7]])
+    pd.testing.assert_frame_equal(full.iloc[[7]], alone)
+    assert len(full) == 500 and list(full.columns[-len(FeatureBuilder.NAMES):]) == FeatureBuilder.NAMES
+    assert not np.isinf(full[FeatureBuilder.NAMES].to_numpy(dtype=float)).any()
+
+
+def test_engineered_pipeline_uses_only_network_features(sample):
+    from nslkdd.models import make_model
+
+    X, y, _ = sample
+    pipe = build_pipeline(make_model("HGB_native", max_iter=20), redundancy="majority_label",
+                          imputation="none", scaling="none", log_transform=False,
+                          service_encoding="ordinal", categorical_encoding="ordinal",
+                          engineered=True).fit(X, y)
+    assert not set(config.LEAKY_COLUMNS) & set(pipe[:-1].get_feature_names_out())
+    assert len(pipe.predict(X.iloc[:300])) == 300

@@ -122,6 +122,45 @@ class DomainCleaner(BaseEstimator, TransformerMixin):
     def get_feature_names_out(self, input_features=None):
         return self.feature_names_in_
 
+# ---------------------------------------------------------------- engenharia de atributos
+
+class FeatureBuilder(BaseEstimator, TransformerMixin):
+    """Atributos derivados por linha (razões e interações), sem parâmetros aprendidos.
+
+    Cada coluna nova é função só dos 41 atributos de rede da própria linha, então aplicá-la ao
+    teste não usa nenhuma informação dele. Árvores precisam de muitos cortes para aproximar
+    produtos e razões; entregá-los prontos pode ajudar. Ausentes propagam como NaN.
+    """
+
+    NAMES = ["bytes_ratio_log", "src_bytes_per_sec_log", "zero_bytes", "srv_count_ratio",
+             "serror_count", "rerror_count", "same_srv_count", "diff_srv_count",
+             "dst_host_srv_ratio", "dst_host_serror_count", "dst_host_rerror_count",
+             "dst_host_same_srv_count"]
+
+    def fit(self, X, y=None):
+        self.feature_names_in_ = np.asarray(X.columns, dtype=object)
+        return self
+
+    def transform(self, X):
+        X = X.copy()
+        pos = lambda c: X[c].clip(lower=0)  # noqa: E731 (negativos já viram NaN no DomainCleaner)
+        X["bytes_ratio_log"] = np.log1p(pos("src_bytes")) - np.log1p(pos("dst_bytes"))
+        X["src_bytes_per_sec_log"] = np.log1p(pos("src_bytes") / (pos("duration") + 1))
+        X["zero_bytes"] = ((X["src_bytes"] == 0) & (X["dst_bytes"] == 0)).astype(float)
+        X["srv_count_ratio"] = pos("srv_count") / (pos("count") + 1)
+        X["serror_count"] = X["serror_rate"] * X["count"]
+        X["rerror_count"] = X["rerror_rate"] * X["count"]
+        X["same_srv_count"] = X["same_srv_rate"] * X["count"]
+        X["diff_srv_count"] = X["diff_srv_rate"] * X["count"]
+        X["dst_host_srv_ratio"] = pos("dst_host_srv_count") / (pos("dst_host_count") + 1)
+        X["dst_host_serror_count"] = X["dst_host_serror_rate"] * X["dst_host_count"]
+        X["dst_host_rerror_count"] = X["dst_host_rerror_rate"] * X["dst_host_count"]
+        X["dst_host_same_srv_count"] = X["dst_host_same_srv_rate"] * X["dst_host_count"]
+        return X
+
+    def get_feature_names_out(self, input_features=None):
+        return np.r_[self.feature_names_in_, self.NAMES].astype(object)
+
 # ---------------------------------------------------------------- codificação
 
 class FrequencyEncoder(BaseEstimator, TransformerMixin):
@@ -205,8 +244,9 @@ def _numeric(columns_log, scaling, imputation):
 
 def make_preprocessor(service_encoding="onehot", categorical_encoding="onehot", scaling="standard",
                       log_transform=True, imputation="median",
-                      drop=tuple(config.CONSTANT_IN_TRAIN)):
-    numeric = [c for c in config.NUMERIC if c not in drop]
+                      drop=tuple(config.CONSTANT_IN_TRAIN), extra=()):
+    """extra: colunas numéricas criadas antes (FeatureBuilder), tratadas como as demais."""
+    numeric = [c for c in config.NUMERIC if c not in drop] + list(extra)
     heavy = [c for c in config.HEAVY_TAILED if c in numeric] if log_transform else []
     light = [c for c in numeric if c not in heavy]
     transformers = [
@@ -308,8 +348,12 @@ def make_balancer(kind="none", min_count=None, max_count=None):
 def build_pipeline(model, *, redundancy="none", domain="nan", imputation="median",
                    service_encoding="onehot", categorical_encoding="onehot",
                    scaling="standard", log_transform=True, reduction="none",
-                   reduction_k=20, balancing="none", min_count=None, max_count=None):
-    """Monta o Pipeline completo. Os nomes dos argumentos viram colunas do log."""
+                   reduction_k=20, balancing="none", min_count=None, max_count=None,
+                   engineered=False):
+    """Monta o Pipeline completo. Os nomes dos argumentos viram colunas do log.
+
+    engineered=True acrescenta os atributos do FeatureBuilder (regra fixa por linha).
+    """
     if imputation == "none" and (reduction != "none" or balancing not in ("none", "class_weight")):
         raise ValueError("Redução e reamostragem não aceitam NaN: escolha uma imputação.")
     model = clone(model)
@@ -322,8 +366,12 @@ def build_pipeline(model, *, redundancy="none", domain="nan", imputation="median
     if red is not None:
         steps.append(("redundancy", red))
     steps.append(("domain", DomainCleaner(domain)))
+    extra = ()
+    if engineered:
+        steps.append(("features", FeatureBuilder()))
+        extra = FeatureBuilder.NAMES
     steps.append(("prep", make_preprocessor(service_encoding, categorical_encoding, scaling,
-                                            log_transform, imputation)))
+                                            log_transform, imputation, extra=extra)))
     reducer = make_reducer(reduction, k=reduction_k)
     if reducer is not None:
         steps.append(("reduce", reducer))

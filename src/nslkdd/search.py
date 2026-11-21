@@ -68,7 +68,7 @@ AXES = {
 
 def threads(name):
     """Threads por modelo; com FOLD_JOBS folds em paralelo, cabe em 16 núcleos."""
-    return 3 if name in ("RF", "ET", "XGB", "KNN") else 1
+    return 3 if name in ("RF", "ET", "XGB", "KNN", "LGBM", "CatBoost") else 1
 
 
 def pick(results, options):
