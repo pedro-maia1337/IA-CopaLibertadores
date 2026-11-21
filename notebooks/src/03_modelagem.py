@@ -52,8 +52,17 @@
 # calculado. Os mesmos experimentos podem ser rodados fora do notebook com
 # `python tools/rodar_experimentos.py etapa3` e `etapa3_extra`: script e notebook montam os
 # modelos pelo mesmo módulo (`nslkdd.modeling`), então compartilham o cache.
+#
+# **Tempo de execução.** Calcular os 135 experimentos desta etapa do zero leva cerca de 2 horas
+# em 16 núcleos (muito mais nos 2 núcleos do Colab). Com `RECALCULAR = False`, os resultados
+# vêm do registro e o notebook roda em poucos minutos, mesmo com versões de bibliotecas
+# diferentes das nossas: se a chave exata não bater (uma versão nova pode acrescentar
+# parâmetros ao modelo), o registro é consultado por uma chave estável, que só considera os
+# parâmetros diferentes do padrão. Com `RECALCULAR = True`, toda validação cruzada é refeita.
 
 # %%
+RECALCULAR = False  # True = refaz todas as validações cruzadas (~2 h em 16 núcleos)
+
 import json
 import warnings; warnings.filterwarnings("ignore")
 from datetime import date
@@ -73,7 +82,7 @@ from nslkdd.preprocessing import FeatureBuilder
 from nslkdd.search import FOLD_JOBS, threads
 
 X, y, groups = load_train()
-log = ExperimentLog()
+log = ExperimentLog(recompute=RECALCULAR)
 np.random.seed(config.RANDOM_STATE)
 pd.set_option("display.max_columns", 60)
 pd.set_option("display.width", 160)
@@ -736,8 +745,9 @@ print(json.dumps(final_config, indent=2, ensure_ascii=False))
 saved = json.loads((config.RESULTS / "final_config.json").read_text(encoding="utf-8"))
 rebuilt = build_pipeline(make_model(saved["model"], 1, **saved["model_params"]),
                          **saved["pipeline_params"])
-key = log.key("etapa3_final", final_name, {"redundancy": clean, "repeticoes": 3}, rebuilt, 5, 3)
-print("Pipeline reconstruído = pipeline avaliado:", key in set(log.table()["key"]))
+found = log.lookup("etapa3_final", final_name, rebuilt, {"redundancy": clean, "repeticoes": 3},
+                   n_splits=5, n_repeats=3)
+print("Pipeline reconstruído = pipeline avaliado:", found is not None)
 rebuilt
 
 # %% [markdown]

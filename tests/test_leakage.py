@@ -135,6 +135,34 @@ def test_log_cache_depends_on_hyperparameters(sample, tmp_path):
     assert len(log.table()) == 2
 
 
+def test_log_falls_back_to_stable_key_when_library_version_changes(sample, tmp_path):
+    """Simula outra versão de biblioteca: a chave exata muda, mas o resultado é reaproveitado."""
+    X, y, groups = sample
+    log = ExperimentLog(tmp_path / "e.csv")
+    pipe = build_pipeline(tree(), redundancy="drop_inconsistent")
+    first = log.run("t", "DT", pipe, X, y, groups, n_splits=3, n_jobs=1, prebuilt=True)
+    table = log.table()
+    table["key"] = "outra_versao"  # get_params() diferente em outra versão
+    table.to_csv(log.path, index=False)
+    again = log.run("t", "DT", pipe, X, y, groups, n_splits=3, n_jobs=1, prebuilt=True)
+    assert len(log.table()) == 1 and log.stable_hits == 1
+    assert again["f1_macro_mean"] == first["f1_macro_mean"]
+    other = build_pipeline(DecisionTreeClassifier(max_depth=3, random_state=0),
+                           redundancy="drop_inconsistent")
+    log.run("t", "DT", other, X, y, groups, n_splits=3, n_jobs=1, prebuilt=True)
+    assert len(log.table()) == 2  # hiperparâmetro diferente não é confundido
+    ExperimentLog(log.path, recompute=True).run("t", "DT", pipe, X, y, groups, n_splits=3,
+                                                n_jobs=1, prebuilt=True)
+    assert len(log.table()) == 3  # recompute=True refaz a CV
+
+
+def test_stable_key_ignores_parameters_left_at_default():
+    from nslkdd.evaluation import changed_params
+    assert changed_params(DecisionTreeClassifier()) == {"classe": "DecisionTreeClassifier",
+                                                        "params": {}}
+    assert changed_params(DecisionTreeClassifier(max_depth=3))["params"] == {"max_depth": 3}
+
+
 def test_fitted_pipeline_can_be_saved(sample, tmp_path):
     X, y, _ = sample
     pipe = build_pipeline(RandomForestClassifier(n_estimators=5, random_state=0),

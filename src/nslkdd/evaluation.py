@@ -1,5 +1,6 @@
 """Validação cruzada no treino, registro de experimentos e relatório de validação."""
 import hashlib
+import inspect
 import json
 import re
 import time
@@ -77,18 +78,64 @@ def _data_version():
     return hashlib.md5(config.TRAIN_FILE.read_bytes()).hexdigest()[:8]
 
 
+def _no_address(text):
+    return re.sub(r" at 0x[0-9a-fA-F]+", "", text)  # endereços de memória mudam a cada execução
+
+
+def changed_params(obj):
+    """Só os parâmetros que diferem do padrão do construtor, recursivamente.
+
+    Um parâmetro novo, acrescentado numa versão mais recente da biblioteca, vem com o valor
+    padrão e não aparece aqui. Por isso esta descrição não muda de uma versão para outra, ao
+    contrário de get_params(), que lista todos os parâmetros que a versão instalada conhece.
+    """
+    if isinstance(obj, (list, tuple)):
+        return [changed_params(o) for o in obj]
+    if isinstance(obj, dict):
+        return {str(k): changed_params(v) for k, v in obj.items()}
+    if isinstance(obj, np.generic):
+        return obj.item()
+    if not (hasattr(obj, "get_params") and not isinstance(obj, type)):
+        return obj if isinstance(obj, (str, int, float, bool, type(None))) else _no_address(repr(obj))
+    try:
+        signature = inspect.signature(type(obj).__init__).parameters
+    except (TypeError, ValueError):
+        signature = {}
+    out = {}
+    for name, value in obj.get_params(deep=False).items():
+        default = signature[name].default if name in signature else inspect.Parameter.empty
+        try:
+            same = default is not inspect.Parameter.empty and bool(value == default)
+        except Exception:  # comparação ambígua (arrays etc.): mantém o parâmetro
+            same = False
+        if not same:
+            out[name] = changed_params(value)
+    return {"classe": type(obj).__name__, "params": out}
+
+
 class ExperimentLog:
     """Tabela comparativa persistente (results/experiments.csv).
 
     Cada linha = configuração de pré-processamento x algoritmo x métricas de CV.
     Configurações já executadas são puladas (cache por hash), o que permite
     reexecutar notebooks sem refazer horas de CV.
+
+    Cada linha tem duas chaves:
+    - key: hash de todos os parâmetros (get_params()). É exata, mas muda quando uma versão
+      nova da biblioteca acrescenta um parâmetro, mesmo que o modelo seja o mesmo.
+    - stable_key: hash só dos parâmetros diferentes do padrão (changed_params()), que não
+      muda entre versões.
+    Com recompute=False (padrão), se a chave exata não for encontrada, o resultado é procurado
+    pela chave estável, com um aviso. Com recompute=True, nada é lido do registro: toda
+    validação cruzada é refeita e gravada de novo.
     """
 
-    def __init__(self, path=config.EXPERIMENT_LOG):
+    def __init__(self, path=config.EXPERIMENT_LOG, recompute=False):
         self.path = path
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.data_version = _data_version()
+        self.recompute = recompute
+        self.stable_hits = 0
 
     def table(self) -> pd.DataFrame:
         return pd.read_csv(self.path) if self.path.exists() else pd.DataFrame()
@@ -99,6 +146,43 @@ class ExperimentLog:
         blob = re.sub(r"0x[0-9a-fA-F]+", "", blob)  # endereços de memória mudam a cada execução
         return hashlib.md5(blob.encode()).hexdigest()[:12]
 
+    def stable_key(self, stage, model_name, params, model, n_splits, n_repeats):
+        blob = json.dumps([stage, model_name, params, changed_params(model), n_splits, n_repeats,
+                           self.data_version], sort_keys=True, default=str)
+        return hashlib.md5(_no_address(blob).encode()).hexdigest()[:12]
+
+    def lookup(self, stage, model_name, model, params=None, n_splits=5, n_repeats=1,
+               table=None):
+        """Resultado já registrado deste experimento (dict) ou None.
+
+        Procura primeiro pela chave exata e depois pela estável. Quando acha pela exata uma
+        linha antiga sem chave estável, completa a linha (sem refazer a CV).
+        """
+        params = params or {}
+        table = self.table() if table is None else table
+        if table.empty:
+            return None
+        key = self.key(stage, model_name, params, model, n_splits, n_repeats)
+        stable = self.stable_key(stage, model_name, params, model, n_splits, n_repeats)
+        if "stable_key" not in table.columns:
+            table["stable_key"] = None
+        table["stable_key"] = table["stable_key"].astype(object)
+        exact = table["key"] == key
+        if exact.any():
+            if table.loc[exact, "stable_key"].isna().any():
+                table.loc[exact, "stable_key"] = stable
+                table.to_csv(self.path, index=False)
+            return table[exact].iloc[-1].to_dict()
+        same = table["stable_key"] == stable
+        if same.any():
+            if self.stable_hits == 0:
+                print("Aviso: as versões das bibliotecas diferem das usadas no cálculo; os "
+                      "resultados são lidos do registro pela chave estável "
+                      "(ExperimentLog(recompute=True) refaz tudo).", flush=True)
+            self.stable_hits += 1
+            return table[same].iloc[-1].to_dict()
+        return None
+
     def run(self, stage, model_name, model, X, y, groups, params=None, n_splits=5, n_repeats=1,
             prebuilt=False, force=False, n_jobs=-1):
         """prebuilt=True: 'model' já é o pipeline/ensemble pronto, e 'params' só descreve a linha."""
@@ -107,10 +191,15 @@ class ExperimentLog:
         params = params or {}
         key = self.key(stage, model_name, params, model, n_splits, n_repeats)
         table = self.table()
-        if not force and not table.empty and key in set(table["key"]):
-            return table[table["key"] == key].iloc[-1].to_dict()
+        if not (force or self.recompute):
+            found = self.lookup(stage, model_name, model, params, n_splits, n_repeats, table)
+            if found is not None:
+                return found
         pipe = model if prebuilt else build_pipeline(model, **params)
-        row = {"key": key, "timestamp": datetime.now().isoformat(timespec="seconds"),
+        row = {"key": key,
+               "stable_key": self.stable_key(stage, model_name, params, model, n_splits,
+                                             n_repeats),
+               "timestamp": datetime.now().isoformat(timespec="seconds"),
                "stage": stage, "model": model_name, "cv": f"group-{n_splits}x{n_repeats}",
                "data_version": self.data_version,
                **{f"p_{k}": v for k, v in params.items()},
