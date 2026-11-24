@@ -53,12 +53,14 @@ Pedro Tinoco Lanna\\[4pt]
 
 Nesta etapa, escolhemos o classificador que vai gerar a submissão da competição. Partimos das melhores configurações de pré-processamento da Etapa 2, comparamos oito algoritmos, ajustamos os hiperparâmetros dos melhores, testamos várias ideias para ganhar alguns décimos de F1-macro e, por fim, congelamos o modelo escolhido em \texttt{results/final\_config.json}. Tudo foi feito só com a base de treino, por validação cruzada agrupada.
 
+\textbf{Sobre a métrica.} Todos os valores deste relatório são F1-macro calculado em \textbf{todas as linhas} de cada fold de validação, como a professora calcula a métrica oficial no teste. A base tem 1.702 grupos de linhas idênticas com rótulos opostos (3.730 linhas). Como a mesma linha recebe uma única previsão, parte dessas cópias sempre erra: nem um classificador perfeito passaria de 0,905, e os bons modelos ficam perto de 0,88. Isso não é falha dos modelos nem vazamento, é aritmética do ruído de rótulo. Na versão anterior deste relatório, o F1-macro era calculado só nas linhas únicas e sem conflito (por isso os valores perto de 0,98); esse número aparece agora apenas como contraste.
+
 \begin{itemize}
-\item \textbf{Os ensembles de árvores vencem com folga.} Boosting (HGB, XGBoost) e bagging (Random Forest) ficam entre 0,978 e 0,982 de F1-macro. A rede neural fica em 0,964, e a árvore única e o Naive Bayes ficam bem atrás (0,894 e 0,776).
-\item \textbf{Ajustar hiperparâmetros rendeu pouco.} Os valores padrão já estavam perto do melhor possível. A diferença entre as boas configurações é menor que a variação natural da validação.
+\item \textbf{Os ensembles de árvores vencem com folga.} Boosting (HGB, XGBoost) e bagging (Random Forest) ficam entre 0,880 e 0,882 de F1-macro. A rede neural fica em 0,871, e a árvore única e o Naive Bayes ficam bem atrás (0,840 e 0,766).
+\item \textbf{Ajustar hiperparâmetros não rendeu.} Os valores padrão já estavam perto do melhor possível. A diferença entre as boas configurações é menor que a variação natural da validação.
 \item \textbf{Tentamos subir a nota de cinco formas}: criando atributos novos, fazendo uma busca mais ampla no HGB, testando dois algoritmos de fora da disciplina (LightGBM e CatBoost), tirando a média de várias sementes e combinando modelos por votação. Nenhuma delas superou o melhor modelo único de forma mensurável.
-\item \textbf{Modelo escolhido: HGB (Histogram Gradient Boosting)}, com F1-macro de \textbf{0,9830 $\pm$ 0,0023} em validação cruzada repetida 3$\times$5. Ele acerta 95,5\% dos ataques e, quando diz que uma conexão é ataque, acerta 98\% das vezes. Uma votação de três modelos teve média um pouco maior (0,9832), mas a diferença é dez vezes menor que a variação entre folds. Pela regra que fixamos antes dos testes, o empate vai para o modelo mais simples.
-\item \textbf{Os erros restantes são difíceis por natureza.} A maioria são ataques que se parecem com conexões normais (\texttt{flag=SF}). Todos os modelos fortes erram praticamente nos mesmos exemplos, o que indica que chegamos perto do limite que os 41 atributos de rede permitem.
+\item \textbf{Modelo escolhido: HGB (Histogram Gradient Boosting)}, com F1-macro de \textbf{0,8819 $\pm$ 0,0030} em validação cruzada repetida 3$\times$5. Uma votação de três modelos (HGB + XGBoost + RF) teve média um pouco maior (0,8826), mas a diferença é quatro vezes menor que a variação entre folds. Pela regra que fixamos antes dos testes, o empate vai para o modelo mais simples.
+\item \textbf{Quase todos os erros estão nos conflitos.} Das 1.851 linhas que o HGB erra fora do fold, 1.706 são linhas com rótulo contraditório. No resto da base (66.103 linhas), ele erra 145 e o F1-macro é 0,983. Os erros restantes são, em sua maioria, ataques que se parecem com conexões normais (\texttt{flag=SF}).
 \end{itemize}
 
 % =====================================================================
@@ -91,7 +93,7 @@ sys.path.insert(0, f"{REPO}/src")
 \item \textbf{Execute tudo} (\textbf{Ambiente de execução > Executar tudo}). Se o \texttt{pip} atualizar o numpy ou o pandas, reinicie a sessão e execute de novo.
 \end{enumerate}
 
-\textbf{Tempo de execução.} Para ver os resultados, não é preciso executar nada: o notebook entregue já está executado, com todas as tabelas e figuras salvas. Se quiser reexecutá-lo, ele leva \textbf{poucos minutos}. A Etapa 3 avalia 135 configurações, cada uma com uma validação cruzada completa, e calcular tudo do zero levou cerca de 2 horas no nosso computador (16 núcleos). Para não repetir esse trabalho, cada resultado fica guardado em \texttt{results/experiments.csv}, que vem junto com o repositório, e o notebook só lê o que já foi calculado. Cada resultado é identificado por uma etiqueta montada a partir dos parâmetros do experimento. Como uma versão diferente das bibliotecas pode acrescentar parâmetros novos ao modelo e mudar essa etiqueta, cada resultado tem também uma etiqueta \emph{estável}, que considera só os parâmetros que escolhemos (os diferentes do padrão). Assim, o registro é encontrado mesmo com as versões do Colab, e o notebook avisa quando isso acontece. Quem quiser refazer todos os cálculos pode mudar \texttt{RECALCULAR = False} para \texttt{True} na primeira célula de código; com os 2 núcleos do Colab gratuito, isso pode levar muitas horas.
+\textbf{Tempo de execução.} Para ver os resultados, não é preciso executar nada: o notebook entregue já está executado, com todas as tabelas e figuras salvas. Se quiser reexecutá-lo, ele leva \textbf{poucos minutos}. A Etapa 3 avalia 135 configurações, cada uma com uma validação cruzada completa, e calcular tudo do zero leva cerca de 2 horas no nosso computador (16 núcleos). Para não repetir esse trabalho, cada resultado fica guardado em \texttt{results/experiments.csv}, que vem junto com o repositório, e o notebook só lê o que já foi calculado. Cada resultado é identificado por uma etiqueta montada a partir dos parâmetros do experimento. Como uma versão diferente das bibliotecas pode acrescentar parâmetros novos ao modelo e mudar essa etiqueta, cada resultado tem também uma etiqueta \emph{estável}, que considera só os parâmetros que escolhemos (os diferentes do padrão). Assim, o registro é encontrado mesmo com as versões do Colab, e o notebook avisa quando isso acontece. Quem quiser refazer todos os cálculos pode mudar \texttt{RECALCULAR = False} para \texttt{True} na primeira célula de código; com os 2 núcleos do Colab gratuito, isso pode levar muitas horas.
 
 % =====================================================================
 \setcounter{section}{-1}
@@ -121,7 +123,7 @@ As regras sobre os dados também não mudaram:
 
 \textbf{Validação cruzada agrupada.} A base tem muitas linhas repetidas. Se uma cópia ficasse no treino e outra na validação, o modelo seria testado em algo que já viu, e a nota sairia inflada. Por isso, usamos \texttt{StratifiedGroupKFold} com 5 folds: todas as cópias de uma mesma linha ficam sempre do mesmo lado.
 
-\textbf{Métrica.} Usamos o F1-macro, que é a métrica oficial da competição. Ele é a média do F1 das duas classes, então a classe minoritária (\texttt{anomaly}) pesa tanto quanto a majoritária. Pontuamos cada fold só nas linhas que de fato medem generalização: uma por grupo de cópias, e sem os grupos em que a mesma linha aparece com os dois rótulos. Nesses grupos, nenhum modelo consegue acertar mais da metade, e o ruído esconderia as diferenças entre os algoritmos.
+\textbf{Métrica.} Usamos o F1-macro, que é a métrica oficial da competição. Ele é a média do F1 das duas classes, então a classe minoritária (\texttt{anomaly}) pesa tanto quanto a majoritária. Pontuamos cada fold em \textbf{todas as linhas}, com cópias e conflitos, porque é assim que a métrica oficial é calculada no teste. Nos 1.702 grupos em que a mesma linha aparece com os dois rótulos, o modelo dá uma única resposta, e parte das cópias sempre erra. Por isso, mesmo um classificador perfeito fora dos conflitos, que escolhesse o melhor rótulo em cada conflito, ficaria em 0,905. Como contraste, registramos também o F1-macro do mesmo modelo, com o mesmo limiar, só nas linhas únicas e sem conflito. Esse valor mostra quanto do erro vem do ruído de rótulo, mas não decide nada e não estima a nota.
 
 \textbf{Por que não a acurácia.} Há 16 conexões normais para cada ataque. Um ``modelo'' que responde sempre \texttt{normal} já tem 94\% de acurácia, mas F1-macro de apenas 0,48. A acurácia aparece nas tabelas só para mostrar o quanto ela engana.
 
@@ -129,8 +131,8 @@ As regras sobre os dados também não mudaram:
 
 \textbf{Pré-processamento.} Cada algoritmo recebe a configuração que venceu na Etapa 2 para a sua família:
 \begin{itemize}
-\item \textbf{Boosting} (HGB, XGBoost, LightGBM, CatBoost): limpeza de rótulos por maioria (\texttt{majority\_label}), valores ausentes e categorias tratados pelo próprio algoritmo, sem escala.
-\item \textbf{Bagging e árvore única} (RF, Extra Trees, DT): imputação pela mediana, one-hot nas categorias e seleção de atributos por importância das árvores.
+\item \textbf{Boosting} (HGB, XGBoost, LightGBM, CatBoost): remoção dos grupos com rótulo contraditório no treino de cada fold (\texttt{drop\_inconsistent}), valores ausentes e categorias tratados pelo próprio algoritmo, sem escala.
+\item \textbf{Bagging e árvore única} (RF, Extra Trees, DT): imputação pela mediana e one-hot nas categorias, sem redução.
 \item \textbf{Modelos sensíveis a escala} (MLP, KNN, Naive Bayes): mediana, one-hot, \texttt{log1p} e padronização. O KNN usa também a seleção dos 30 melhores atributos.
 \end{itemize}
 
@@ -158,21 +160,21 @@ Testamos oito algoritmos, cobrindo as famílias vistas na disciplina, todos com 
 
 \begin{table}[H]
 \centering
-\caption{Os oito algoritmos com hiperparâmetros padrão (CV agrupada, 5 folds).}
+\caption{Os oito algoritmos com hiperparâmetros padrão (CV agrupada, 5 folds, todas as linhas). Precisão e recall de \texttt{anomaly} ficam perto de 0,75--0,80 porque metade das cópias em conflito é rotulada \texttt{anomaly}.}
 \label{tab:algoritmos}
 \begin{adjustbox}{max width=\linewidth}
 \begin{tabular}{llrrrrrrr}
 \toprule
 Algoritmo & Família & F1-macro & dp & F1 anomaly & precisão anomaly & recall anomaly & acurácia & tempo (s) \\
 \midrule
-HGB & boosting & \textbf{0.9820} & 0.0015 & 0.9652 & 0.9778 & 0.9531 & 0.9977 & 16 \\
-Random Forest & bagging & 0.9813 & 0.0020 & 0.9638 & 0.9708 & 0.9570 & 0.9976 & 63 \\
-XGBoost & boosting & 0.9786 & 0.0013 & 0.9587 & 0.9801 & 0.9382 & 0.9973 & 18 \\
-Extra Trees & bagging & 0.9741 & 0.0045 & 0.9499 & 0.9667 & 0.9340 & 0.9967 & 66 \\
-MLP & rede neural & 0.9641 & 0.0038 & 0.9305 & 0.9534 & 0.9102 & 0.9955 & 28 \\
-KNN & instâncias & 0.9518 & 0.0083 & 0.9068 & 0.9322 & 0.8838 & 0.9940 & 14 \\
-Árvore de Decisão & árvore única & 0.8937 & 0.0045 & 0.7956 & 0.6906 & 0.9389 & 0.9841 & 35 \\
-Naive Bayes & probabilístico & 0.7763 & 0.0419 & 0.5768 & 0.4282 & 0.9058 & 0.9542 & 11 \\
+HGB & boosting & \textbf{0.8821} & 0.0009 & 0.7784 & 0.7565 & 0.8017 & 0.9733 & 14 \\
+Random Forest & bagging & 0.8808 & 0.0018 & 0.7760 & 0.7534 & 0.8002 & 0.9730 & 33 \\
+XGBoost & boosting & 0.8799 & 0.0008 & 0.7742 & 0.7506 & 0.7995 & 0.9728 & 16 \\
+Extra Trees & bagging & 0.8774 & 0.0028 & 0.7695 & 0.7539 & 0.7857 & 0.9725 & 43 \\
+MLP & rede neural & 0.8711 & 0.0044 & 0.7576 & 0.7456 & 0.7705 & 0.9712 & 24 \\
+KNN & instâncias & 0.8624 & 0.0058 & 0.7410 & 0.7352 & 0.7472 & 0.9695 & 13 \\
+Árvore de Decisão & árvore única & 0.8403 & 0.0024 & 0.7015 & 0.6333 & 0.7867 & 0.9609 & 15 \\
+Naive Bayes & probabilístico & 0.7662 & 0.0292 & 0.5696 & 0.4596 & 0.7578 & 0.9318 & 11 \\
 \bottomrule
 \end{tabular}
 \end{adjustbox}
@@ -181,9 +183,9 @@ Naive Bayes & probabilístico & 0.7763 & 0.0419 & 0.5768 & 0.4282 & 0.9058 & 0.9
 \textbf{O que os resultados mostram.}
 \begin{itemize}
 \item \textbf{Os ensembles de árvores dominam.} HGB, Random Forest e XGBoost ficam praticamente empatados no topo. Os atributos do KDD são contagens e taxas com fronteiras nítidas: por exemplo, uma taxa alta de erros SYN (\texttt{serror\_rate}) indica uma varredura de portas. Cortes do tipo ``\texttt{serror\_rate} $>$ 0,8'' são exatamente o que uma árvore aprende.
-\item \textbf{A árvore única perde quase 9 pontos.} Sozinha, ela se ajusta demais aos exemplos com rótulo errado. Os ensembles corrigem isso: o bagging tira a média de muitas árvores, e o boosting corrige os erros de uma árvore com a seguinte. Note que a árvore única tem 98,4\% de acurácia, mas acerta só 69\% das vezes em que acusa um ataque. A acurácia esconde esse problema, e o F1-macro o mostra.
+\item \textbf{A árvore única perde 4 pontos}, muito numa escala em que o teto é 0,905. Sozinha, ela se ajusta demais aos exemplos com rótulo errado. Os ensembles corrigem isso: o bagging tira a média de muitas árvores, e o boosting corrige os erros de uma árvore com a seguinte. Note que a árvore única tem 96,1\% de acurácia, mas acerta só 63\% das vezes em que acusa um ataque. A acurácia esconde esse problema, e o F1-macro o mostra.
 \item \textbf{MLP e KNN ficam no meio.} Os dois dependem de distâncias e de escala. Mesmo com \texttt{log1p} e padronização, a mistura de dezenas de colunas one-hot de \texttt{service} com taxas contínuas atrapalha.
-\item \textbf{O Naive Bayes é o pior e o mais instável.} Ele supõe que os atributos são independentes entre si, mas muitas taxas do KDD andam juntas (\texttt{serror\_rate}, \texttt{srv\_serror\_rate}, \texttt{dst\_host\_serror\_rate}). Ele acaba contando a mesma evidência várias vezes e dispara alarmes demais (precisão de 43\%).
+\item \textbf{O Naive Bayes é o pior e o mais instável.} Ele supõe que os atributos são independentes entre si, mas muitas taxas do KDD andam juntas (\texttt{serror\_rate}, \texttt{srv\_serror\_rate}, \texttt{dst\_host\_serror\_rate}). Ele acaba contando a mesma evidência várias vezes e dispara alarmes demais (precisão de 46\%).
 \end{itemize}
 
 Seguiram para o ajuste de hiperparâmetros os três melhores (HGB, RF e XGBoost) e o MLP, que representa as redes neurais citadas no enunciado.
@@ -193,7 +195,7 @@ Seguiram para o ajuste de hiperparâmetros os três melhores (HGB, RF e XGBoost)
 
 \ideia{\textbf{Ideia central:} procurar configurações melhores que o padrão usando a mesma régua de antes.}
 
-Fizemos uma busca aleatória: sorteamos de 6 a 12 combinações de hiperparâmetros por algoritmo e avaliamos cada uma com a mesma validação agrupada. Não usamos o \texttt{GridSearchCV} pronto do scikit-learn porque ele pontuaria também as cópias e os conflitos, e não escolheria o limiar fora do fold.
+Fizemos uma busca aleatória: sorteamos de 6 a 12 combinações de hiperparâmetros por algoritmo e avaliamos cada uma com a mesma validação agrupada. Não usamos o \texttt{GridSearchCV} pronto do scikit-learn porque ele não escolhe o limiar fora do fold.
 
 \begin{figure}[H]
 \centering
@@ -208,15 +210,15 @@ Fizemos uma busca aleatória: sorteamos de 6 a 12 combinações de hiperparâmet
 \toprule
 Algoritmo & sorteios & F1 padrão & F1 melhor sorteio \\
 \midrule
-HGB & 12 & 0.9820 & 0.9820 \\
-Random Forest & 6 & 0.9813 & 0.9795 \\
-XGBoost & 12 & 0.9786 & 0.9781 \\
-MLP & 6 & 0.9641 & 0.9633 \\
+HGB & 12 & 0.8821 & 0.8817 \\
+Random Forest & 6 & 0.8808 & 0.8806 \\
+XGBoost & 12 & 0.8799 & 0.8800 \\
+MLP & 6 & 0.8711 & 0.8721 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\textbf{O que os resultados mostram.} A busca não encontrou nada melhor que o padrão. No RF e no XGBoost, o melhor sorteio ficou até um pouco abaixo. Os valores padrão desses algoritmos já são escolhas consagradas, e a base é ``fácil'' para eles. A busca mostrou que os hiperparâmetros importam para fugir de configurações ruins (no HGB, os sorteios variam até 0,01), mas não separam as configurações boas entre si.
+\textbf{O que os resultados mostram.} A busca não encontrou nada melhor que o padrão. No HGB, o melhor sorteio ficou até um pouco abaixo; nos demais, a diferença está dentro do ruído. Os valores padrão desses algoritmos já são escolhas consagradas, e a base é ``fácil'' para eles. A busca mostrou que os hiperparâmetros importam para fugir de configurações ruins (no HGB, os sorteios variam até 0,006), mas não separam as configurações boas entre si.
 
 % =====================================================================
 \section{Tentativas de ganho adicional}
@@ -234,18 +236,18 @@ Criamos 12 atributos calculados a partir de cada linha, como razões e produtos.
 \toprule
 Algoritmo & sem atributos & com atributos & diferença \\
 \midrule
-HGB & 0.9820 & 0.9827 & +0.0007 \\
-XGBoost & 0.9781 & 0.9771 & $-$0.0010 \\
-Random Forest & 0.9795 & 0.9786 & $-$0.0009 \\
+HGB & 0.8817 & 0.8808 & $-$0.0009 \\
+XGBoost & 0.8800 & 0.8783 & $-$0.0017 \\
+Random Forest & 0.8806 & 0.8805 & $-$0.0001 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-O HGB melhorou um pouco, menos que 1 desvio-padrão, e os outros dois pioraram. Na validação repetida (Seção~\ref{sec:finalistas}), o ganho do HGB desapareceu: era sorte da divisão dos folds. As árvores já conseguiam combinar taxa e contagem sozinhas.
+Nenhum modelo melhorou: os três ficaram iguais ou um pouco piores. As árvores já conseguiam combinar taxa e contagem sozinhas, e as colunas redundantes diluem a amostragem de atributos do XGBoost e do RF. A ideia ainda passou pela validação repetida (Seção~\ref{sec:finalistas}), para não ser descartada por causa de uma única divisão dos folds.
 
 \subsection{Busca mais ampla no HGB}
 
-O HGB é o melhor modelo e também o mais rápido (cerca de 17 segundos por validação). Isso permitiu uma segunda busca, com 20 sorteios num espaço mais largo: mais iterações, árvores maiores e amostragem de colunas.
+O HGB é o melhor modelo e também o mais rápido (cerca de 15 segundos por validação). Isso permitiu uma segunda busca, com 20 sorteios num espaço mais largo: mais iterações, árvores maiores e amostragem de colunas.
 
 \begin{figure}[H]
 \centering
@@ -253,7 +255,7 @@ O HGB é o melhor modelo e também o mais rápido (cerca de 17 segundos por vali
 \caption{Segunda busca no HGB, sem e com os atributos novos.}
 \end{figure}
 
-O melhor sorteio chegou a 0,9834, com folhas de no mínimo 20 exemplos (mais regularização) e taxa de aprendizado de 0,08. A maioria dos sorteios, porém, ficou abaixo do HGB padrão (a mediana é 0,9815). Quando se escolhe o melhor de 20 tentativas, parte do ganho é sorte. Por isso, o vencedor da busca também passou pela validação repetida.
+O melhor sorteio chegou a 0,8828, com folhas de no mínimo 20 exemplos (mais regularização), taxa de aprendizado de 0,08 e 70\% das colunas por iteração. A maioria dos sorteios, porém, ficou abaixo do HGB padrão (a média é 0,8815, contra 0,8821). Quando se escolhe o melhor de 20 tentativas, parte do ganho é sorte. Por isso, o vencedor da busca também passou pela validação repetida.
 
 \subsection{Algoritmos de fora da disciplina: LightGBM e CatBoost}
 
@@ -272,8 +274,8 @@ Os dois receberam o mesmo pré-processamento do HGB e passaram pelo mesmo protoc
 \toprule
 Algoritmo & sorteios & F1 padrão & F1 melhor sorteio \\
 \midrule
-LightGBM & 20 & 0.9818 & 0.9833 \\
-CatBoost & 8 & 0.9709 & 0.9765 \\
+LightGBM & 20 & 0.8818 & 0.8822 \\
+CatBoost & 8 & 0.8760 & 0.8777 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -294,38 +296,38 @@ Também testamos duas formas de combinar modelos, avaliadas na Seção~\ref{sec:
 
 \ideia{\textbf{Ideia central:} com diferenças tão pequenas, uma única validação não basta. Repetimos a validação três vezes, com divisões diferentes, para separar ganho real de sorte.}
 
-Uma validação de 5 folds tem desvio-padrão de 0,001 a 0,002, da mesma ordem das diferenças entre os candidatos. Por isso, os 16 finalistas foram reavaliados com a validação agrupada repetida 3 vezes (sementes 42, 43 e 44, 15 folds ao todo). É essa medida que decide.
+Uma validação de 5 folds tem desvio-padrão de 0,001 a 0,003, da mesma ordem das diferenças entre os candidatos. Por isso, os 15 finalistas foram reavaliados com a validação agrupada repetida 3 vezes (sementes 42, 43 e 44, 15 folds ao todo). É essa medida que decide.
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.9\linewidth,height=0.36\textheight,keepaspectratio]{figuras/mod_finalistas.png}
-\caption{Os 16 finalistas. Em azul, os que estão a menos de 1 desvio-padrão do primeiro colocado, ou seja, empatados com ele. A linha tracejada marca esse limite.}
+\caption{Os 15 finalistas. Em azul, os que estão a menos de 1 desvio-padrão do primeiro colocado, ou seja, empatados com ele. A linha tracejada marca esse limite.}
 \end{figure}
 
 \begin{table}[H]
 \centering
-\caption{Finalistas em CV agrupada 3$\times$5, ordenados pelo F1-macro. A última coluna indica empate com o 1º colocado (diferença menor que 1 dp).}
+\caption{Finalistas em CV agrupada 3$\times$5, ordenados pelo F1-macro (todas as linhas). A coluna ``sem conflitos'' é o contraste: o mesmo modelo e limiar, só nas linhas únicas e sem rótulo contraditório. A última coluna indica empate com o 1º colocado (diferença menor que 1 dp).}
 \label{tab:finalistas}
 \begin{adjustbox}{max width=\linewidth}
 \begin{tabular}{lrrrrrrrc}
 \toprule
-Modelo & F1-macro & dp & F1 anomaly & precisão anomaly & recall anomaly & acurácia & tempo (s) & empata? \\
+Modelo & F1-macro & dp & sem conflitos & F1 anomaly & precisão anomaly & recall anomaly & tempo (s) & empata? \\
 \midrule
-Voto HGB + LightGBM + CatBoost & 0.9832 & 0.0024 & 0.9674 & 0.9802 & 0.9551 & 0.9979 & 368 & 1º \\
-\textbf{HGB busca 2 (escolhido)} & \textbf{0.9830} & 0.0023 & 0.9672 & 0.9803 & 0.9545 & 0.9979 & 45 & \checkmark \\
-LightGBM & 0.9830 & 0.0030 & 0.9671 & 0.9843 & 0.9506 & 0.9979 & 45 & \checkmark \\
-Voto HGB + LightGBM & 0.9830 & 0.0026 & 0.9670 & 0.9788 & 0.9557 & 0.9979 & 67 & \checkmark \\
-Voto HGB busca 2 $\pm$ atributos & 0.9829 & 0.0023 & 0.9668 & 0.9821 & 0.9521 & 0.9978 & 68 & \checkmark \\
-HGB busca 2, 5 sementes & 0.9827 & 0.0023 & 0.9666 & 0.9785 & 0.9550 & 0.9978 & 115 & \checkmark \\
-HGB busca 2 + atributos & 0.9825 & 0.0031 & 0.9662 & 0.9804 & 0.9525 & 0.9978 & 50 & \checkmark \\
-Voto HGB + CatBoost & 0.9824 & 0.0022 & 0.9660 & 0.9790 & 0.9535 & 0.9978 & 348 & \checkmark \\
-HGB (1ª busca) & 0.9823 & 0.0023 & 0.9658 & 0.9783 & 0.9538 & 0.9978 & 47 & \checkmark \\
-Voto HGB + XGBoost + RF & 0.9821 & 0.0026 & 0.9653 & 0.9753 & 0.9557 & 0.9977 & 638 & \checkmark \\
-HGB + atributos & 0.9820 & 0.0025 & 0.9651 & 0.9797 & 0.9511 & 0.9977 & 54 & \checkmark \\
-Random Forest & 0.9802 & 0.0019 & 0.9618 & 0.9755 & 0.9485 & 0.9975 & 437 & \\
-XGBoost & 0.9780 & 0.0027 & 0.9575 & 0.9727 & 0.9431 & 0.9972 & 52 & \\
-CatBoost & 0.9778 & 0.0028 & 0.9571 & 0.9755 & 0.9397 & 0.9972 & 331 & \\
-MLP & 0.9640 & 0.0048 & 0.9303 & 0.9461 & 0.9156 & 0.9955 & 160 & \\
+Voto HGB + XGBoost + RF & 0.8826 & 0.0029 & 0.9821 & 0.7794 & 0.7568 & 0.8035 & 663 & 1º \\
+Voto HGB + LightGBM & 0.8822 & 0.0030 & 0.9821 & 0.7786 & 0.7587 & 0.7996 & 138 & \checkmark \\
+Voto HGB busca 2 $\pm$ atributos & 0.8821 & 0.0027 & 0.9821 & 0.7783 & 0.7584 & 0.7993 & 117 & \checkmark \\
+Voto HGB + LightGBM + CatBoost & 0.8821 & 0.0029 & 0.9820 & 0.7784 & 0.7588 & 0.7991 & 276 & \checkmark \\
+HGB busca 2, 5 sementes & 0.8820 & 0.0027 & 0.9819 & 0.7782 & 0.7588 & 0.7987 & 224 & \checkmark \\
+\textbf{HGB busca 2 (escolhido)} & \textbf{0.8819} & 0.0030 & 0.9817 & 0.7779 & 0.7588 & 0.7982 & 76 & \checkmark \\
+HGB busca 2 + atributos & 0.8818 & 0.0030 & 0.9819 & 0.7777 & 0.7589 & 0.7976 & 77 & \checkmark \\
+LightGBM & 0.8815 & 0.0029 & 0.9812 & 0.7772 & 0.7589 & 0.7965 & 63 & \checkmark \\
+Voto HGB + CatBoost & 0.8813 & 0.0027 & 0.9812 & 0.7767 & 0.7594 & 0.7950 & 326 & \checkmark \\
+Random Forest & 0.8812 & 0.0031 & 0.9801 & 0.7768 & 0.7551 & 0.7999 & 619 & \checkmark \\
+HGB (1ª busca) & 0.8811 & 0.0030 & 0.9791 & 0.7764 & 0.7534 & 0.8011 & 71 & \checkmark \\
+HGB + atributos & 0.8803 & 0.0029 & 0.9787 & 0.7749 & 0.7552 & 0.7959 & 85 & \checkmark \\
+XGBoost & 0.8790 & 0.0039 & 0.9769 & 0.7725 & 0.7549 & 0.7910 & 68 & \\
+CatBoost & 0.8770 & 0.0022 & 0.9739 & 0.7686 & 0.7531 & 0.7849 & 289 & \\
+MLP & 0.8716 & 0.0036 & 0.9625 & 0.7587 & 0.7362 & 0.7830 & 165 & \\
 \bottomrule
 \end{tabular}
 \end{adjustbox}
@@ -333,11 +335,11 @@ MLP & 0.9640 & 0.0048 & 0.9303 & 0.9461 & 0.9156 & 0.9955 & 160 & \\
 
 \textbf{O que os resultados mostram.}
 \begin{itemize}
-\item \textbf{Dez candidatos empatam com o primeiro.} A votação HGB + LightGBM + CatBoost tem a maior média (0,9832), mas o HGB, o LightGBM e a votação HGB + LightGBM ficam a apenas 0,0002 dela. Essa diferença é dez vezes menor que o desvio entre folds.
+\item \textbf{Onze candidatos empatam com o primeiro.} A votação HGB + XGBoost + RF tem a maior média (0,8826), mas o HGB da busca ampliada fica a 0,0007 dela, quatro vezes menos que o desvio entre folds.
 \item \textbf{Combinar modelos não ajudou.} Média de sementes, votações entre HGBs e votações com outros algoritmos ficam todas dentro da variação do modelo único. A votação só corrige erros quando os modelos erram em exemplos \emph{diferentes}. Aqui, os modelos fortes erram quase sempre nos mesmos (Seção~\ref{sec:erros}).
-\item \textbf{Os atributos novos não se confirmaram.} Na validação repetida, o HGB com atributos (0,9820) ficou abaixo do HGB sem eles (0,9823).
-\item \textbf{O LightGBM alcança o HGB, mas não o supera.} O CatBoost fica atrás até do Random Forest.
-\item \textbf{O F1-macro sobre todas as linhas fica perto de 0,88 em todos os modelos.} Esse número inclui as cópias e os grupos com rótulos contraditórios, que nenhum modelo acerta. É um teto imposto pelos dados, igual para todos.
+\item \textbf{Os atributos novos não se confirmaram.} Na validação repetida, o HGB com atributos (0,8803) ficou abaixo do HGB sem eles (0,8811), e na busca ampliada os dois empatam (0,8818 e 0,8819).
+\item \textbf{O LightGBM alcança o HGB, mas não o supera.} O CatBoost e o XGBoost ficam fora do empate.
+\item \textbf{A coluna sem conflitos conta a mesma história em outra escala.} Sem as linhas contraditórias, os mesmos modelos ficam entre 0,96 e 0,98, quase na mesma ordem. A distância para os 0,88 da métrica oficial é o efeito dos conflitos, igual para todos os modelos.
 \end{itemize}
 
 % =====================================================================
@@ -353,12 +355,12 @@ As Tabelas~\ref{tab:algoritmos} e~\ref{tab:finalistas} são a tabela comparativa
 \toprule
 Técnica & Quem ganha & Por quê \\
 \midrule
-Limpeza de rótulos (\texttt{majority\_label}) & boosting (HGB: +0,007 na Etapa 2) & O boosting ajusta cada árvore aos erros da anterior e acaba ``perseguindo'' exemplos com rótulo trocado. O bagging tira a média de muitas árvores, o que já dilui esse ruído. \\
+Limpeza de rótulos (\texttt{drop\_inconsistent}) & boosting (HGB: +0,004 na Etapa 2) & O boosting ajusta cada árvore aos erros da anterior e acaba ``perseguindo'' exemplos com rótulo trocado. O bagging tira a média de muitas árvores, o que já dilui esse ruído. \\
 \texttt{log1p} + padronização & MLP e KNN & Esses modelos usam distâncias e gradientes, e as caudas longas de \texttt{src\_bytes} e \texttt{dst\_bytes} dominariam o cálculo. As árvores só olham a ordem dos valores, então não mudam. \\
 Categorias nativas & HGB, LightGBM, CatBoost & O próprio algoritmo agrupa vários serviços num só corte. Os demais usam one-hot, que não cria uma ordem falsa entre os serviços. \\
 NaN nativo & HGB, XGBoost, LightGBM & O algoritmo aprende para que lado da divisão mandar o valor ausente. Os demais precisam de imputação pela mediana. \\
-Seleção de atributos & RF (árvores), KNN (30 melhores) & Reduz o custo e, no KNN, tira do cálculo das distâncias dimensões que só atrapalham. O PCA perdeu em todos os testes da Etapa 2. \\
-Balanceamento & nenhum & O limiar de decisão ajustado (entre 0,24 e 0,42 nos finalistas) já compensa o desbalanceamento, sem criar exemplos sintéticos. \\
+Seleção de atributos & KNN (30 melhores) & No KNN, tira do cálculo das distâncias dimensões que só atrapalham. No RF, a seleção por árvores empatou com não reduzir (Etapa 2). O PCA perdeu em todos os testes. \\
+Balanceamento & nenhum & O limiar de decisão ajustado (entre 0,04 e 0,36 nos finalistas) já compensa o desbalanceamento, sem criar exemplos sintéticos. \\
 \bottomrule
 \end{tabular}
 \end{adjustbox}
@@ -375,13 +377,14 @@ Usamos previsões feitas fora do fold (cada linha é prevista por um modelo que 
 \begin{figure}[H]
 \centering
 \includegraphics[width=\linewidth,height=0.26\textheight,keepaspectratio]{figuras/mod_confusao_oof.png}
-\caption{Matriz de confusão das previsões fora do fold. À esquerda, as contagens; à direita, a proporção de acertos por classe.}
+\caption{Matriz de confusão das previsões fora do fold, em todas as linhas. À esquerda, as contagens; à direita, a proporção de acertos por classe.}
 \end{figure}
 
 \begin{itemize}
-\item \textbf{O modelo deixa passar cerca de 4\% dos ataques} (74 de 1.817) e dá alarme falso em 0,08\% das conexões normais (42 de 53.247). O F1 da classe \texttt{normal} é quase perfeito (0,999), então o F1-macro depende quase só do F1 de \texttt{anomaly} (0,968).
-\item \textbf{Os ataques perdidos se parecem com tráfego normal.} 55 dos 74 têm \texttt{flag=SF}, que indica uma conexão encerrada normalmente. Essa flag aparece em 95\% do tráfego normal e em só 21\% dos ataques. Eles se concentram em serviços de login e transferência de arquivos (\texttt{private}, \texttt{ftp\_data}, \texttt{telnet}, \texttt{http}). Isso sugere ataques de acesso remoto, que não deixam rastro nas estatísticas de tráfego e são justamente os mais difíceis de detectar no KDD.
-\item \textbf{O serviço \texttt{private} concentra também os alarmes falsos} (19 dos 42). Nesse serviço, as duas classes se sobrepõem.
+\item \textbf{Quase todo erro está nos conflitos.} Com o limiar escolhido no OOF (0,03), o F1-macro em todas as linhas é 0,8828. O modelo erra 1.851 linhas, e 1.706 delas estão entre as 3.730 linhas com rótulo contraditório: nesses grupos, a mesma linha tem os dois rótulos e recebe uma só previsão. No resto da base (66.103 linhas), ele erra 145 e o F1-macro é 0,983.
+\item \textbf{Fora dos conflitos, o modelo deixa passar 3,7\% dos ataques} (81 de 2.183) e dá alarme falso em 0,1\% das conexões normais (64 de 63.920).
+\item \textbf{Os ataques perdidos se parecem com tráfego normal.} 60 dos 81 têm \texttt{flag=SF}, que indica uma conexão encerrada normalmente. Essa flag aparece em 95\% do tráfego normal e em só 21\% dos ataques. Eles se concentram em serviços de login e transferência de arquivos (\texttt{private}, \texttt{ftp\_data}, \texttt{telnet}, \texttt{http}). Isso sugere ataques de acesso remoto, que não deixam rastro nas estatísticas de tráfego e são justamente os mais difíceis de detectar no KDD.
+\item \textbf{O serviço \texttt{private} concentra também os alarmes falsos} (31 dos 64). Nesse serviço, as duas classes se sobrepõem.
 \end{itemize}
 
 \begin{figure}[H]
@@ -396,24 +399,24 @@ Usamos previsões feitas fora do fold (cada linha é prevista por um modelo que 
 \end{figure}
 
 \begin{itemize}
-\item \textbf{O limiar exato pesa pouco.} O F1-macro fica a menos de 0,002 do máximo para qualquer corte entre 0,07 e 0,52. O que importa é baixar o corte abaixo de 0,5, na direção da classe minoritária.
-\item \textbf{O modelo é confiante na grande maioria das linhas.} Quase todas as probabilidades estão perto de 0 ou de 1. Os erros ficam numa faixa estreita de exemplos ambíguos. Isso explica por que as votações não ajudaram: esses exemplos não são erros aleatórios de um modelo, são casos que os 41 atributos não conseguem separar.
+\item \textbf{O limiar exato pesa pouco.} O F1-macro fica a menos de 0,002 do máximo para qualquer corte entre 0,01 e 0,39; em 0,5 ele cai só para 0,8803. O limiar escolhido é baixo por causa dos conflitos: nos 1.376 grupos com o mesmo número de cópias de cada rótulo, prever \texttt{anomaly} rende mais F1-macro do que prever \texttt{normal}, porque cada acerto na classe rara pesa mais.
+\item \textbf{O modelo é confiante na grande maioria das linhas.} Quase todas as probabilidades estão perto de 0 ou de 1. Fora dos conflitos, os erros ficam numa faixa estreita de exemplos ambíguos. Isso explica por que as votações não ajudaram: esses exemplos não são erros aleatórios de um modelo, são casos que os 41 atributos não conseguem separar.
 \end{itemize}
 
 % =====================================================================
 \section{Escolha e congelamento do modelo final}
 
-\textbf{Decisão: HGB da busca ampliada.} Aplicando a regra da Seção~1, a votação HGB + LightGBM + CatBoost tem a maior média, mas o HGB fica a 0,0002 dela, dez vezes menos que o desvio entre folds. Os dois estão empatados, e o empate vai para o mais simples. O HGB:
+\textbf{Decisão: HGB da busca ampliada.} Aplicando a regra da Seção~1, a votação HGB + XGBoost + RF tem a maior média, mas o HGB fica a 0,0007 dela, quatro vezes menos que o desvio entre folds. Os dois estão empatados, e o empate vai para o mais simples. O HGB:
 \begin{itemize}
 \item é um único modelo, visto na disciplina, sem passos extras;
-\item treina em cerca de 1/8 do tempo da votação tripla;
+\item treina em cerca de 1/9 do tempo da votação tripla;
 \item pode ser explicado diretamente na Etapa 4;
-\item entre os modelos únicos, empata em média com o LightGBM e tem desvio menor (0,0023 contra 0,0030).
+\item tem a maior média entre os modelos únicos empatados (0,8819, contra 0,8815 do LightGBM e 0,8812 do RF).
 \end{itemize}
 
-Resumindo: \emph{todos os candidatos de boosting ficam perto de 0,983 e são equivalentes dentro do ruído; escolhemos o mais simples.}
+Resumindo: \emph{todos os candidatos de boosting ficam perto de 0,882 e são equivalentes dentro do ruído; escolhemos o mais simples.}
 
-\textbf{Um cuidado honesto.} O ganho do HGB da busca ampliada sobre o da primeira busca (0,9830 contra 0,9823) também está dentro do ruído. Além disso, a busca usou a mesma divisão de folds da semente 42 que entra na validação 3$\times$5, o que dá a ele uma leve vantagem otimista. Como os dois são o mesmo algoritmo, com pipeline idêntico, isso não muda a conclusão.
+\textbf{Um cuidado honesto.} O ganho do HGB da busca ampliada sobre o da primeira busca (0,8819 contra 0,8811) também está dentro do ruído. Além disso, a busca usou a mesma divisão de folds da semente 42 que entra na validação 3$\times$5, o que dá a ele uma leve vantagem otimista. Como os dois são o mesmo algoritmo, com pipeline idêntico, isso não muda a conclusão.
 
 A configuração final foi gravada em \texttt{results/final\_config.json}:
 
@@ -426,12 +429,13 @@ A configuração final foi gravada em \texttt{results/final\_config.json}:
 Item & Valor \\
 \midrule
 Algoritmo & \texttt{HistGradientBoostingClassifier}, com categorias e NaN nativos \\
-Hiperparâmetros & \texttt{learning\_rate=0.08}, \texttt{max\_iter=500}, \texttt{max\_leaf\_nodes=31}, \texttt{min\_samples\_leaf=20}, \texttt{l2\_regularization=0.1} \\
-Pré-processamento & limpeza de rótulos \texttt{majority\_label}; valores impossíveis viram NaN; sem imputação, escala nem balanceamento \\
+Hiperparâmetros & \texttt{learning\_rate=0.08}, \texttt{max\_iter=500}, \texttt{max\_leaf\_nodes=63}, \texttt{min\_samples\_leaf=20}, \texttt{max\_features=0.7}, \texttt{l2\_regularization=0.0} \\
+Pré-processamento & remoção dos grupos com rótulo contraditório no treino (\texttt{drop\_inconsistent}); valores impossíveis viram NaN; sem imputação, escala nem balanceamento \\
 Atributos & os 41 atributos de rede, sem colunas de vazamento nem derivadas \\
-Limiar de decisão & escolhido pelo \texttt{ThresholdClassifier} com previsões fora do fold no próprio treino (média de 0,27 na validação) \\
-F1-macro esperado & 0,9830 $\pm$ 0,0023 (CV agrupada 3$\times$5, linhas únicas e sem conflito) \\
-Congelado em & 21/11/2026, versão da base \texttt{db8fb3ac} \\
+Limiar de decisão & escolhido pelo \texttt{ThresholdClassifier} com previsões fora do fold no próprio treino (média de 0,04 na validação) \\
+F1-macro esperado & \textbf{0,8819 $\pm$ 0,0030} (CV agrupada 3$\times$5, todas as linhas, como a métrica oficial) \\
+Contraste sem conflitos & 0,9817 (mesmo modelo, só linhas únicas e sem rótulo contraditório) \\
+Congelado em & 24/11/2026 (refeito com a métrica corrigida), versão da base \texttt{db8fb3ac} \\
 \bottomrule
 \end{tabular}
 \end{adjustbox}
@@ -450,20 +454,20 @@ Para garantir que o arquivo descreve exatamente o modelo avaliado, o notebook re
 \toprule
 Pergunta & Resposta \\
 \midrule
-Melhor família & boosting de árvores (HGB e LightGBM empatados), seguido de Random Forest e XGBoost \\
+Melhor família & boosting de árvores (HGB e LightGBM empatados), com Random Forest e as votações no empate \\
 Modelo final & HGB com categorias e NaN nativos, limpeza de rótulos e limiar ajustado \\
-F1-macro esperado & 0,9830 $\pm$ 0,0023 na validação agrupada 3$\times$5 \\
+F1-macro esperado & 0,8819 $\pm$ 0,0030 na validação agrupada 3$\times$5, em todas as linhas (teto teórico 0,905; sem conflitos, 0,9817) \\
 O que mais rendeu & limpeza de rótulos no boosting (Etapa 2) e ajuste do limiar de decisão \\
-O que não rendeu & balanceamento, PCA, votações, média de sementes, atributos novos, CatBoost e a maior parte do ajuste de hiperparâmetros \\
-Limite aparente & cerca de 0,983 com os 41 atributos de rede; os erros que sobram são ataques com \texttt{flag=SF} que imitam conexões normais \\
+O que não rendeu & balanceamento, redução, votações, média de sementes, atributos novos, CatBoost e o ajuste de hiperparâmetros \\
+Erros restantes & 92\% estão nas linhas com rótulo contraditório; os demais são, em sua maioria, ataques com \texttt{flag=SF} que imitam conexões normais \\
 \bottomrule
 \end{tabular}
 \end{adjustbox}
 \end{table}
 
-\textbf{O preço de não vazar.} As colunas de vazamento, sozinhas, chegariam a 0,992 de F1-macro (Etapa 1). Abrimos mão delas porque são registradas depois do evento (alertas e tempo de resposta do analista) e não existiriam no momento de classificar uma conexão real.
+\textbf{O preço de não vazar.} As colunas de vazamento, sozinhas, chegariam a 0,889 de F1-macro na mesma métrica (Etapa 1), acima de qualquer modelo de tráfego. Abrimos mão delas porque são registradas depois do evento (alertas e tempo de resposta do analista) e não existiriam no momento de classificar uma conexão real.
 
-\textbf{O que esperar do teste.} A professora calcula o F1-macro em \emph{todas} as linhas do teste. Se o teste tiver cópias e rótulos contraditórios na mesma proporção do treino, a nota oficial deve ficar abaixo da nossa validação e mais perto do F1-macro sobre todas as linhas (cerca de 0,88), porque nenhum modelo acerta os dois rótulos de uma mesma linha. Isso vale para todas as equipes e não muda a ordem entre os modelos.
+\textbf{O que esperar do teste.} A professora calcula o F1-macro em \emph{todas} as linhas do teste, como a nossa validação. Se o teste tiver cópias e rótulos contraditórios na mesma proporção do treino, a nota oficial deve ficar perto de 0,88. Se tiver menos conflitos, pode ficar acima, até perto do valor sem conflitos (0,98). O ruído vale para todas as equipes e não muda a ordem entre os modelos.
 
 \textbf{Próximo passo (Etapa 4).} O notebook 04 vai ler o \texttt{final\_config.json}, treinar o modelo no treino inteiro, abrir o teste uma única vez, gerar o arquivo de submissão e registrar a sua assinatura SHA-256. Depois, vamos explicar as decisões do modelo (importância dos atributos e SHAP).
 

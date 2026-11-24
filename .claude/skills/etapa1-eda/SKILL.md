@@ -19,7 +19,7 @@ Entregável: `notebooks/01_eda.ipynb` (gerado de `notebooks/src/01_eda.py`, ver 
 6. **Redundância de atributos**: 5 cópias exatas e correlação entre os 41.
 7. **Redundância e inconsistência de instâncias**: cópias, rótulos contraditórios, quantos conflitos parecem ataques reais.
 8. **Investigação de vazamento (Seção 7 do enunciado)**: associação, natureza de cada coluna suspeita, `feature_set_gain`.
-9. **Protocolo de validação**: CV comum × agrupada e por que pontuar sem conflitos.
+9. **Protocolo de validação**: CV comum × agrupada; pontuação em todas as linhas (como a métrica oficial), com o valor sem conflitos só como contraste.
 10. **Diagnóstico e plano para a Etapa 2**: tabela "problema → evidência → técnica → por quê".
 
 ## Qualidade

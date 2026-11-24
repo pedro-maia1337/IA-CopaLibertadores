@@ -99,7 +99,7 @@ def run_axis(log, family, axis, options, params, X, y, groups, verbose=True):
         results.append(r)
         rows.append({"familia": family, "eixo": axis, "opcao": describe(option),
                      "f1_macro": r["f1_macro_mean"], "dp": r["f1_macro_std"],
-                     "f1_macro_bruto": r["f1_macro_noisy_mean"],
+                     "f1_sem_conflito": r["f1_macro_clean_mean"],
                      "f1_normal": r["f1_normal_mean"], "f1_anomaly": r["f1_anomaly_mean"],
                      "precision_anomaly": r["precision_anomaly_mean"],
                      "recall_anomaly": r["recall_anomaly_mean"],

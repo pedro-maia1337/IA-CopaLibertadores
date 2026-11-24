@@ -37,12 +37,12 @@ log.run("etapa2", "RF", make_model("RF"), X, y, groups,
 ```
 Padrões proibidos: `scaler.fit(X_test)`, `SMOTE().fit_resample(X, y)` seguido de CV, `pd.concat([train, test])`, `cross_val_score`/`StratifiedKFold` sem grupos, `X = df.drop(columns="class")` (traz as colunas de vazamento), `GridSearchCV(...).fit(X_test, ...)`.
 
-Para busca de hiperparâmetros use `ExperimentLog.run` em laço (ver `tools/rodar_experimentos.py`): `GridSearchCV` só respeita grupos com `.fit(X, y, groups=groups)`, e não pontua na máscara sem conflitos.
+Para busca de hiperparâmetros use `ExperimentLog.run` em laço (ver `tools/rodar_experimentos.py`): `GridSearchCV` só respeita grupos com `.fit(X, y, groups=groups)`, e não aplica o limiar cruzado (cada fold pontuado com o limiar aprendido nos outros).
 
 ## Critério para as colunas novas (por que `score_ids_legado` não é legítimo)
 Associação alta sozinha não prova vazamento; a prova é a natureza da coluna. Sempre que a base trouxer um atributo suspeito, aplique:
 1. **Disponibilidade:** existe no momento de classificar a conexão? `tempo_resposta_analista_min` e `tipo_alerta_soc` só existem depois do evento.
-2. **Independência do tráfego:** `audit.feature_set_gain` com o conjunto "só as colunas suspeitas". Se alcança o desempenho do modelo completo sem nenhum dado de rede, não descreve a conexão. Aqui: 0,992 contra 0,970 dos 41 atributos.
+2. **Independência do tráfego:** `audit.feature_set_gain` com o conjunto "só as colunas suspeitas". Se alcança o desempenho do modelo completo sem nenhum dado de rede, não descreve a conexão. Aqui (F1-macro em todas as linhas): 0,889 contra 0,875 dos 41 atributos.
 3. **Relação com o fenômeno:** um IDS calcula o score do tráfego. Entre conexões da mesma classe, score alto deveria implicar tráfego diferente; aqui, a probabilidade vista pelo tráfego é igual. Logo é ruído + rótulo.
 
 ## Auditoria (rodar antes de cada entrega)

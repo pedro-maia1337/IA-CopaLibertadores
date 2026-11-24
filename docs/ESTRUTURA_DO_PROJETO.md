@@ -132,7 +132,7 @@ Caminhos do projeto, semente (`RANDOM_STATE = 42`), os 41 atributos permitidos (
 | `load_test(final_evaluation=True)` | `X` e `ids` do teste; **sem o parâmetro, lança erro** |
 | `write_submission(ids, y_pred)` | Valida colunas, ids (sem repetidos, mesma ordem), rótulos e vazios contra o modelo e grava `results/submissao_<N>.csv` |
 | `check_submission(path)` | Relê o CSV gravado, valida o formato da Seção 3.1 e devolve o SHA-256 (prova de reprodutibilidade) |
-| `duplicate_groups`, `conflict_mask`, `evaluation_mask` | Grupos de cópias, linhas contraditórias e linhas usadas para pontuar |
+| `duplicate_groups`, `conflict_mask`, `evaluation_mask` | Grupos de cópias, linhas contraditórias e linhas únicas sem conflito (só para o F1 de contraste) |
 
 A carga padroniza caixa e espaços dos categóricos, regra fixa por linha que não remove nada.
 
@@ -152,7 +152,7 @@ A carga padroniza caixa e espaços dos categóricos, regra fixa por linha que n�
 Como tudo está dentro do pipeline, a validação cruzada ajusta cada etapa **só nos folds de treino**, eliminando vazamento por construção.
 
 ### `evaluation.py` — validação e registro
-- `cross_validate_pipeline`: CV estratificada e **agrupada por duplicata**, pontuada só em linhas únicas e sem conflito, com o limiar de cada fold aprendido nos demais. `f1_macro_noisy` registra o valor com tudo incluído, como contraste.
+- `cross_validate_pipeline`: CV estratificada e **agrupada por duplicata**, pontuada em **todas as linhas** do fold (como a métrica oficial), com o limiar de cada fold aprendido nos demais. `f1_macro_clean` registra o valor nas linhas únicas e sem conflito, só como contraste.
 - `ExperimentLog`: executa a CV e grava em `results/experiments.csv`. Configurações já executadas são puladas (o cache considera também os hiperparâmetros e a versão dos dados). `leaderboard()` devolve a tabela comparativa ordenada.
 - `validation_report(y_true, y_pred)`: métricas e matriz de confusão das previsões OOF. O teste não tem rótulos, então não há relatório de teste.
 
@@ -260,6 +260,6 @@ Antes de cada entrega:
 | `attack`, `difficulty` | não existem | CV por grupo de ataque removida |
 | sem ausentes | 94% das linhas com algum ausente | eixo `imputation`; NaN nativo nas árvores |
 | sem valores impossíveis | 8% das linhas | `DomainCleaner` |
-| 16 duplicatas | 13.067 cópias e 1.702 conflitos | CV agrupada, `evaluation_mask`, `relabel_model` |
+| 16 duplicatas | 13.067 cópias e 1.702 conflitos | CV agrupada, limpeza de rótulos no pipeline (`drop_inconsistent`, `majority_label`, `relabel_model`) |
 | categorias limpas | grafias variantes | `normalize_text` na carga |
 | 41 atributos | + 5 derivadas e 3 de vazamento | `FEATURES` continua com 41; as demais ficam fora |

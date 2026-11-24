@@ -15,8 +15,8 @@
 # - 69.833 linhas e 50 colunas. O problema agora é **binário** (`normal` × `anomaly`), com 5,8% de
 #   `anomaly` (16:1): "tudo normal" tem 94% de acurácia e F1-macro de apenas 0,485.
 # - **Vazamento:** `score_ids_legado`, `tipo_alerta_soc` e `tempo_resposta_analista_min` são cópias
-#   ruidosas do rótulo, geradas depois do evento. Sem nenhum dado de rede, alcançam F1-macro 0,992;
-#   os 41 atributos de rede, 0,970. As três ficam **fora do modelo**.
+#   ruidosas do rótulo, geradas depois do evento. Sem nenhum dado de rede, alcançam F1-macro 0,889
+#   (CV agrupada, todas as linhas), acima dos 41 atributos de rede (0,875). Ficam **fora do modelo**.
 # - 5 colunas novas são cópias exatas de atributos existentes, com os mesmos ausentes: removidas.
 # - **Ruído de rótulo:** 13.067 cópias (19% das linhas) e 1.702 grupos com a mesma linha rotulada
 #   com as duas classes. Cerca de 57% desses conflitos são ataques reais.
@@ -25,7 +25,8 @@
 # - 8% das linhas têm valores impossíveis (taxas > 1, contagens multiplicadas, negativos), sem
 #   relação com a classe: erro de medição, tratado como ausente.
 # - `protocol_type`, `flag` e `service` têm grafias variantes (96 → 67 serviços após padronizar).
-# - Validação: cópias exigem CV **agrupada**, pontuando só linhas únicas e sem conflito.
+# - Validação: cópias exigem CV **agrupada**. A pontuação usa **todas as linhas**, como o F1-macro
+#   oficial; os conflitos limitam essa métrica a 0,905 mesmo para um classificador perfeito.
 #
 # **Índice**
 # 0. Configuração e política de dados
@@ -423,8 +424,12 @@ print(f"taxa de anomaly fora dos conflitos: {is_anomaly[~conflict].mean():.3%}; 
 #
 # Isso muda o trabalho em três frentes:
 # 1. **Ruído de rótulo**: treinar com conflitos ensina o modelo a errar.
-# 2. **Avaliação**: nenhuma regra acerta os dois lados de um conflito, então o F1-macro sobre
-#    todas as linhas tem um teto artificial e esconde as diferenças entre técnicas.
+# 2. **Avaliação**: nenhuma regra acerta os dois lados de um conflito (a mesma linha recebe uma
+#    única previsão), então o F1-macro sobre todas as linhas tem um teto: mesmo um classificador
+#    perfeito fora dos conflitos, que escolhesse o melhor rótulo em cada conflito, ficaria em 0,905
+#    (erraria as 1.702 cópias minoritárias). Ainda assim, é essa a
+#    métrica oficial: a professora calcula o F1-macro em todas as linhas do teste. Por isso a
+#    validação pontua todas as linhas, e o valor sem conflitos serve só de contraste.
 # 3. **Vazamento entre folds**: em CV comum, as cópias caem em folds diferentes (Seção 9).
 #
 # Quem seria o rótulo verdadeiro? Um modelo treinado só com as linhas sem conflito consegue
@@ -541,10 +546,14 @@ gain
 
 # %% [markdown]
 # **Decisão: as três colunas são vazamento e ficam fora do modelo.** Três colunas sem nenhum dado de
-# rede alcançam o desempenho do modelo completo, o que seria impossível para atributos que
-# descrevem a conexão. O F1 que elas acrescentam não generaliza para o uso real, porque, em
-# operação, nem o analista respondeu nem o SOC fez a triagem ainda: um detector que depende delas
-# detecta o que já foi detectado.
+# rede alcançam o desempenho do modelo completo (0,889 contra 0,891) e superam os 41 atributos de
+# rede (0,875), o que seria impossível para atributos que descrevem a conexão. Há um sinal ainda
+# mais direto. Duas cópias de uma mesma conexão têm o mesmo tráfego e recebem a mesma previsão de
+# um modelo de rede, mas as colunas novas ainda variam com o rótulo de cada cópia (nos conflitos,
+# `tipo_alerta_soc` = ALERTA em 64% das cópias `anomaly` contra 56% das `normal`): elas acompanham
+# o rótulo, não a conexão. O F1 que elas acrescentam não generaliza para o uso
+# real, porque, em operação, nem o analista respondeu nem o SOC fez a triagem ainda: um detector
+# que depende delas detecta o que já foi detectado.
 #
 # Elas também estão em `teste_sem_rotulo.csv`, então usá-las subiria o ranking. O enunciado é
 # explícito: vazamento derruba a nota metodológica independentemente da posição. A remoção é
@@ -560,29 +569,40 @@ gain
 # "testado" no que já viu. Comparamos as duas réguas, com o mesmo modelo e sem limpeza.
 
 # %%
-mask = evaluation_mask(groups, y)
+mask = evaluation_mask(groups, y)  # linhas únicas e sem conflito: só para contraste
 
 
 def f1_cv(cv_groups):
+    """F1-macro OOF em todas as linhas (métrica oficial) e, com o mesmo limiar, sem conflitos."""
     proba, _ = cross_val_proba(hgb, X, y, cv_groups)
-    t = best_threshold(proba[mask], is_anomaly[mask])
-    return float(macro_f1_curve(proba[mask], is_anomaly[mask], np.array([t]))[0])
+    t = best_threshold(proba, is_anomaly)
+    full = macro_f1_curve(proba, is_anomaly, np.array([t]))[0]
+    clean = macro_f1_curve(proba[mask], is_anomaly[mask], np.array([t]))[0]
+    return round(float(full), 4), round(float(clean), 4)
 
 
 row_ids = np.arange(len(X))  # grupos unitários = CV estratificada comum
+common, grouped = f1_cv(row_ids), f1_cv(groups)
 inflation = pd.DataFrame({"CV": ["estratificada comum", "agrupada por duplicata"],
-                          "f1_macro": [round(f1_cv(row_ids), 4), round(f1_cv(groups), 4)]})
+                          "f1_macro (todas as linhas)": [common[0], grouped[0]],
+                          "f1_macro sem conflitos (contraste)": [common[1], grouped[1]]})
 inflation
 
 # %% [markdown]
-# A CV comum dá um valor maior (+0,002). A diferença é pequena, da ordem do desvio entre folds, então
-# não dá para dizer que ela distorceria uma comparação. O argumento é de correção, não de tamanho:
-# as cópias tornam a validação parcialmente uma consulta ao treino, e a CV agrupada elimina isso por
-# construção, sem custo. O protocolo do trabalho é:
+# As duas réguas discordam, e em direções diferentes conforme as linhas pontuadas. Nas linhas
+# únicas e sem conflito, a CV comum dá um valor um pouco maior (+0,001): a cópia da linha validada
+# estava no treino. Em todas as linhas, ela dá um valor **menor** (−0,008): as cópias dos grupos com
+# rótulos contraditórios ficam dos dois lados, e o modelo aprende, para aquela linha exata, o rótulo
+# da cópia que viu no treino, que é o oposto do rótulo de parte das cópias validadas. Nos dois casos
+# a CV comum mede outra coisa que não a generalização para conexões novas. O argumento é de
+# correção, não de tamanho: as cópias tornam a validação parcialmente uma consulta ao treino, e a
+# CV agrupada elimina isso por construção, sem custo. O protocolo do trabalho é:
 #
 # - `StratifiedGroupKFold` com o grupo de duplicatas: cópias nunca ficam em lados opostos;
-# - pontuação em **uma linha por grupo, sem conflitos** (`evaluation_mask`), que é a situação do
-#   teste: sem cópias e com um rótulo por linha. `f1_macro_noisy` registra o valor com tudo incluído;
+# - pontuação em **todas as linhas** do fold de validação, cópias e conflitos incluídos, porque é
+#   assim que a métrica oficial é calculada no teste. O valor nas linhas únicas e sem conflito
+#   (`evaluation_mask`, coluna `f1_macro_clean`) é registrado só como contraste: mostra quanto do
+#   erro vem do ruído de rótulo, mas não estima a nota e não decide nada;
 # - limiar de decisão escolhido nos outros folds, nunca no que está sendo pontuado.
 
 # %% [markdown]

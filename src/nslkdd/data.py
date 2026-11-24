@@ -60,11 +60,11 @@ def conflict_mask(groups, y) -> np.ndarray:
 
 
 def evaluation_mask(groups, y) -> np.ndarray:
-    """Linhas que medem generalização: uma por grupo, sem rótulo contraditório.
+    """Uma linha por grupo de duplicatas, sem rótulo contraditório. Só para contraste.
 
-    Conflitos são cara ou coroa (mesma linha com os dois rótulos): nenhum modelo acerta,
-    e mantê-los esconde as diferenças entre técnicas. Cópias pesariam a mesma linha
-    várias vezes, algo que não existe no teste.
+    A métrica oficial (e a de seleção) é o F1-macro em TODAS as linhas. Esta máscara serve
+    para medir quanto do erro vem dos conflitos (mesma linha com os dois rótulos, que nenhum
+    modelo acerta por inteiro): o F1 nela (f1_macro_clean) não estima a nota do teste.
     """
     first = ~pd.Series(np.asarray(groups)).duplicated().to_numpy()
     return first & ~conflict_mask(groups, y)

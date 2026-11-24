@@ -1,9 +1,9 @@
 algoritmo,pré-processamento,F1-macro,dp,F1 anomaly,F1 normal,precisão anomaly,recall anomaly,acur. balanceada,acurácia,tempo (s)
-HGB_native,redundância: majority_label; ausentes: NaN nativo; service: nativa,0.982,0.0015,0.9652,0.9988,0.9778,0.9531,0.9762,0.9977,15.6
-RF,redundância: none; ausentes: median; service: onehot; tree_select,0.9813,0.002,0.9638,0.9988,0.9708,0.957,0.978,0.9976,63.0
-XGB,redundância: majority_label; ausentes: NaN nativo; service: nativa,0.9786,0.0013,0.9587,0.9986,0.9801,0.9382,0.9688,0.9973,17.8
-ET,redundância: none; ausentes: median; service: onehot; tree_select,0.9741,0.0045,0.9499,0.9983,0.9667,0.934,0.9664,0.9967,65.6
-MLP,redundância: none; ausentes: median; service: onehot; log1p + standard,0.9641,0.0038,0.9305,0.9977,0.9534,0.9102,0.9543,0.9955,27.8
-KNN,redundância: none; ausentes: median; service: onehot; log1p + standard; kbest_f k=30,0.9518,0.0083,0.9068,0.9969,0.9322,0.8838,0.9408,0.994,13.8
-DT,redundância: none; ausentes: median; service: onehot; tree_select,0.8937,0.0045,0.7956,0.9917,0.6906,0.9389,0.9623,0.9841,34.9
-NB,redundância: none; ausentes: median; service: onehot; log1p + standard,0.7763,0.0419,0.5768,0.9758,0.4282,0.9058,0.9308,0.9542,11.1
+HGB_native,redundância: drop_inconsistent; ausentes: NaN nativo; service: nativa,0.8821,0.0009,0.7784,0.9858,0.7565,0.8017,0.8928,0.9733,14.3
+RF,redundância: none; ausentes: median; service: onehot,0.8808,0.0018,0.776,0.9856,0.7534,0.8002,0.892,0.973,33.2
+XGB,redundância: drop_inconsistent; ausentes: NaN nativo; service: nativa,0.8799,0.0008,0.7742,0.9855,0.7506,0.7995,0.8915,0.9728,15.7
+ET,redundância: none; ausentes: median; service: onehot,0.8774,0.0028,0.7695,0.9854,0.7539,0.7857,0.8849,0.9725,42.5
+MLP,redundância: none; ausentes: median; service: onehot; log1p + standard,0.8711,0.0044,0.7576,0.9847,0.7456,0.7705,0.8771,0.9712,24.3
+KNN,redundância: none; ausentes: median; service: onehot; log1p + standard; kbest_f k=30,0.8624,0.0058,0.741,0.9838,0.7352,0.7472,0.8653,0.9695,12.8
+DT,redundância: none; ausentes: median; service: onehot,0.8403,0.0024,0.7015,0.9791,0.6333,0.7867,0.8792,0.9609,14.8
+NB,redundância: none; ausentes: median; service: onehot; log1p + standard,0.7662,0.0292,0.5696,0.9629,0.4596,0.7578,0.8502,0.9318,10.6

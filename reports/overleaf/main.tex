@@ -106,11 +106,11 @@ O Colab apaga \texttt{/content} quando a sessão termina, então baixe o que for
 
 A base tem 69.833 linhas e 50 colunas, e o problema é \textbf{binário}: separar conexões \texttt{normal} de \texttt{anomaly}. As anomalias são apenas 5,8\% das linhas, uma proporção de 16 para 1. Isso significa que um classificador que responde ``normal'' para tudo acerta 94\% das vezes e, ainda assim, tem F1-macro de só 0,485.
 
-O achado mais importante é o \textbf{vazamento de dados}. As colunas \texttt{score\_ids\_legado}, \texttt{tipo\_alerta\_soc} e \texttt{tempo\_resposta\_analista\_min} são cópias ruidosas do rótulo: sozinhas, sem nenhum dado de rede, chegam a F1-macro 0,992, mais do que os 0,970 dos 41 atributos de rede. Por isso, ficam \textbf{fora do modelo}. Outras 5 colunas novas são apenas cópias exatas de atributos existentes, com os mesmos ausentes, e também foram removidas.
+O achado mais importante é o \textbf{vazamento de dados}. As colunas \texttt{score\_ids\_legado}, \texttt{tipo\_alerta\_soc} e \texttt{tempo\_resposta\_analista\_min} são cópias ruidosas do rótulo: sozinhas, sem nenhum dado de rede, chegam a F1-macro 0,889, mais do que os 0,875 dos 41 atributos de rede (validação agrupada, F1-macro em todas as linhas, como a métrica oficial). Por isso, ficam \textbf{fora do modelo}. Outras 5 colunas novas são apenas cópias exatas de atributos existentes, com os mesmos ausentes, e também foram removidas.
 
 A base também é ruidosa. Há 13.067 cópias de linhas (19\% do total) e 1.702 grupos em que a mesma linha aparece com os dois rótulos; cerca de 57\% desses conflitos parecem ser ataques reais. Além disso, 94\% das linhas têm algum valor ausente, em 24 atributos e com até 40\% de falta. Quase sempre essa falta parece aleatória, mas em \texttt{dst\_host\_serror\_rate} os valores altos somem mais, e são justamente eles que indicam ataque (ausência \textbf{MNAR}).
 
-Por fim, 8\% das linhas têm valores impossíveis, sem relação com a classe, que tratamos como erro de medição. Os atributos \texttt{protocol\_type}, \texttt{flag} e \texttt{service} têm grafias variantes (96 $\rightarrow$ 67 serviços após padronizar). Como há tantas cópias, a validação cruzada precisa ser \textbf{agrupada}, e a pontuação considera só linhas únicas e sem conflito.
+Por fim, 8\% das linhas têm valores impossíveis, sem relação com a classe, que tratamos como erro de medição. Os atributos \texttt{protocol\_type}, \texttt{flag} e \texttt{service} têm grafias variantes (96 $\rightarrow$ 67 serviços após padronizar). Como há tantas cópias, a validação cruzada precisa ser \textbf{agrupada}. A pontuação usa \textbf{todas as linhas}, como a métrica oficial; por causa dos conflitos, nem um classificador perfeito passaria de 0,905 de F1-macro.
 
 \setcounter{section}{-1}
 
@@ -526,7 +526,7 @@ grupos com rótulos contraditórios: 1702 (3730 linhas)
 taxa de anomaly fora dos conflitos: 3.302%; nos conflitos: 50.8%
 \end{saida}
 
-Quase 19\% das linhas são cópias, e o fato de os conflitos estarem divididos meio a meio é a marca de rótulos trocados. Isso nos afeta de três formas. Treinar com conflitos ensina o modelo a errar. Na avaliação, nenhuma regra acerta os dois lados de um conflito, o que cria um teto artificial no F1-macro. E, na validação cruzada comum, as cópias caem em folds diferentes, como discutido na Seção 9.
+Quase 19\% das linhas são cópias, e o fato de os conflitos estarem divididos meio a meio é a marca de rótulos trocados. Isso nos afeta de três formas. Treinar com conflitos ensina o modelo a errar. Na avaliação, nenhuma regra acerta os dois lados de um conflito, já que a mesma linha recebe uma única previsão. Isso cria um teto no F1-macro: mesmo um classificador perfeito fora dos conflitos, que escolhesse o melhor rótulo em cada conflito, ficaria em 0,905. Ainda assim, a métrica oficial é calculada em todas as linhas do teste, e por isso a nossa validação também pontua todas as linhas. E, na validação cruzada comum, as cópias caem em folds diferentes, como discutido na Seção 9.
 
 Para estimar qual seria o rótulo verdadeiro, treinamos um modelo apenas com as linhas sem conflito, sem usar nenhuma coluna suspeita:
 
@@ -632,24 +632,24 @@ Entre as conexões \texttt{normal}, ter score alto ou baixo não muda em nada a 
 
 \begin{table}[H]
 \centering
-\caption{F1-macro e AUC por conjunto de colunas, com o mesmo modelo e a mesma validação agrupada.}
+\caption{F1-macro e AUC por conjunto de colunas, com o mesmo modelo e a mesma validação agrupada, em todas as linhas.}
 \begin{adjustbox}{max width=\linewidth}
 \begin{tabular}{lrrrr}
 \toprule
  & conjunto & n\_colunas & f1\_macro\_cv & auc\_cv \\
 \midrule
-0 & 41 atributos de rede & 41 & 0.9702 & 0.9974 \\
-1 & + score\_ids\_legado & 42 & 0.9847 & 0.9990 \\
-2 & + tipo\_alerta\_soc & 42 & 0.9887 & 0.9980 \\
-3 & + tempo\_resposta & 42 & 0.9837 & 0.9970 \\
-4 & + as três & 44 & 0.9948 & 0.9994 \\
-5 & só as três (sem rede) & 3 & 0.9923 & 0.9992 \\
+0 & 41 atributos de rede & 41 & 0.8753 & 0.9033 \\
+1 & + score\_ids\_legado & 42 & 0.8842 & 0.9058 \\
+2 & + tipo\_alerta\_soc & 42 & 0.8870 & 0.9055 \\
+3 & + tempo\_resposta & 42 & 0.8829 & 0.9034 \\
+4 & + as três & 44 & 0.8907 & 0.9054 \\
+5 & só as três (sem rede) & 3 & 0.8894 & 0.9043 \\
 \bottomrule
 \end{tabular}
 \end{adjustbox}
 \end{table}
 
-\textbf{Nossa decisão é manter as três colunas fora do modelo.} Sem nenhum dado de rede, elas alcançam o desempenho do modelo completo, o que seria impossível para atributos que realmente descrevem a conexão. Em operação, o analista ainda não respondeu e o SOC ainda não fez a triagem, então um detector baseado nelas só detectaria o que já foi detectado.
+\textbf{Nossa decisão é manter as três colunas fora do modelo.} Sem nenhum dado de rede, elas alcançam o desempenho do modelo completo (0,889 contra 0,891) e superam os 41 atributos de rede (0,875), o que seria impossível para atributos que realmente descrevem a conexão. Há um sinal ainda mais direto: duas cópias de uma mesma conexão têm o mesmo tráfego, mas as colunas novas variam com o rótulo de cada cópia (nos conflitos, \texttt{tipo\_alerta\_soc} vale ALERTA em 64\% das cópias \texttt{anomaly} e em 56\% das \texttt{normal}). Elas acompanham o rótulo, não a conexão. Em operação, o analista ainda não respondeu e o SOC ainda não fez a triagem, então um detector baseado nelas só detectaria o que já foi detectado.
 
 Como essas colunas também estão no teste, usá-las subiria o ranking, mas o enunciado é claro: vazamento derruba a nota metodológica. A remoção está garantida no código, já que \texttt{config.FEATURES} não as contém e \texttt{tests/test\_leakage.py} verifica isso. Entre os 41 atributos de rede, nenhum passa do alerta de associação de 0,9.
 
@@ -661,18 +661,20 @@ Antes de comparar técnicas, precisamos de uma régua confiável. Com 19\% de c�
 \centering
 \caption{F1-macro por tipo de validação cruzada.}
 \begin{adjustbox}{max width=\linewidth}
-\begin{tabular}{lrr}
+\begin{tabular}{lrrr}
 \toprule
- & CV & f1\_macro \\
+ & CV & f1\_macro (todas as linhas) & sem conflitos (contraste) \\
 \midrule
-0 & estratificada comum & 0.9780 \\
-1 & agrupada por duplicata & 0.9757 \\
+0 & estratificada comum & 0.8698 & 0.9765 \\
+1 & agrupada por duplicata & 0.8780 & 0.9756 \\
 \bottomrule
 \end{tabular}
 \end{adjustbox}
 \end{table}
 
-A diferença é pequena (+0,002), da ordem da variação entre folds, então não dá para dizer que ela distorceria uma comparação. O argumento é de correção: a validação agrupada elimina esse problema por construção e não custa nada. Por isso, o protocolo do trabalho usa \texttt{StratifiedGroupKFold} com o grupo de duplicatas, para que cópias nunca fiquem em lados opostos. A pontuação considera \textbf{uma linha por grupo, sem conflitos} (\texttt{evaluation\_mask}), enquanto \texttt{f1\_macro\_noisy} registra o valor com tudo incluído. O limiar de decisão é sempre escolhido nos outros folds, nunca naquele que está sendo pontuado.
+As duas réguas discordam, e em direções diferentes conforme as linhas pontuadas. Nas linhas únicas e sem conflito, a validação comum dá um valor um pouco maior (+0,001), porque a cópia da linha validada estava no treino. Em todas as linhas, ela dá um valor \textbf{menor} ($-$0,008): as cópias dos grupos com rótulos contraditórios ficam dos dois lados, e o modelo aprende, para aquela linha exata, o rótulo da cópia que viu no treino, que é o oposto do rótulo de parte das cópias validadas. Nos dois casos, a validação comum mede outra coisa que não a generalização para conexões novas.
+
+O argumento é de correção, não de tamanho: a validação agrupada elimina esse problema por construção e não custa nada. Por isso, o protocolo do trabalho usa \texttt{StratifiedGroupKFold} com o grupo de duplicatas, para que cópias nunca fiquem em lados opostos. A pontuação considera \textbf{todas as linhas} do fold de validação, cópias e conflitos incluídos, porque é assim que a métrica oficial é calculada no teste. O valor nas linhas únicas e sem conflito (\texttt{evaluation\_mask}) é registrado só como contraste: mostra quanto do erro vem do ruído de rótulo, mas não estima a nota. O limiar de decisão é sempre escolhido nos outros folds, nunca naquele que está sendo pontuado.
 
 \section*{Declaração de uso de Inteligência Artificial}
 \addcontentsline{toc}{section}{Declaração de uso de Inteligência Artificial}

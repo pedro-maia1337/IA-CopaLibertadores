@@ -19,7 +19,7 @@ from sklearn.feature_selection import mutual_info_classif
 from sklearn.metrics import roc_auc_score
 
 from . import config
-from .data import duplicate_groups, evaluation_mask
+from .data import duplicate_groups
 from .decision import best_threshold, cross_val_proba, macro_f1_curve
 
 
@@ -70,7 +70,6 @@ def feature_set_gain(frame, y, groups, feature_sets, n_splits=5, n_jobs=-1):
     É o teste de vazamento mais direto: colunas que explicam o rótulo sem depender do
     tráfego, ou que elevam muito o F1 sobre os atributos de rede, merecem suspeita.
     """
-    mask = evaluation_mask(groups, y)
     is_positive = y.to_numpy() == config.POSITIVE
     rows = []
     for name, columns in feature_sets.items():
@@ -81,11 +80,13 @@ def feature_set_gain(frame, y, groups, feature_sets, n_splits=5, n_jobs=-1):
                                                categorical_features="from_dtype",
                                                random_state=config.RANDOM_STATE)
         proba, _ = cross_val_proba(model, X, y, groups, n_splits, n_jobs=n_jobs)
-        threshold = best_threshold(proba[mask], is_positive[mask])
-        curve = macro_f1_curve(proba[mask], is_positive[mask], np.array([threshold]))
+        # Todas as linhas, como a métrica oficial (limiar no próprio OOF: é uma comparação
+        # entre conjuntos de colunas, não uma estimativa de desempenho).
+        threshold = best_threshold(proba, is_positive)
+        curve = macro_f1_curve(proba, is_positive, np.array([threshold]))
         rows.append({"conjunto": name, "n_colunas": len(columns),
                      "f1_macro_cv": round(float(curve[0]), 4),
-                     "auc_cv": round(roc_auc_score(is_positive[mask], proba[mask]), 4)})
+                     "auc_cv": round(roc_auc_score(is_positive, proba), 4)})
     return pd.DataFrame(rows)
 
 

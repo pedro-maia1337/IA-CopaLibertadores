@@ -10,7 +10,7 @@ Fonte: `reports/relatorio.md` (rascunho em Markdown); exportar para PDF/DOCX no 
 ## Estrutura e orçamento de páginas (≈ 4 págs + referências)
 1. **Introdução** (¼ pág): problema, base, métrica F1-macro e por que não acurácia.
 2. **Base e diagnóstico** (½ pág): problema binário com 5,8% de `anomaly`, principais achados da EDA, colunas de vazamento (Seção 7), rótulos contraditórios, ausentes.
-3. **Metodologia** (1 pág): protocolo de validação (CV estratificada agrupada por duplicata, pontuada em linhas únicas e sem conflito, com limiar cruzado), pipeline e ordem das etapas (diagrama simples), parágrafo anti-vazamento (texto-base na skill `anti-vazamento`), critério de escolha do modelo pré-declarado.
+3. **Metodologia** (1 pág): protocolo de validação (CV estratificada agrupada por duplicata, pontuada em todas as linhas, como a métrica oficial, com limiar cruzado; F1 sem conflitos só como contraste), pipeline e ordem das etapas (diagrama simples), parágrafo anti-vazamento (texto-base na skill `anti-vazamento`), critério de escolha do modelo pré-declarado.
 4. **Pré-processamento: escolhas e justificativas** (1 pág): uma subseção curta por requisito 1–5 + ausentes. Formato fixo: *alternativas testadas → resultado (F1-macro ± dp) → decisão → justificativa técnica + referência ao material*.
 5. **Modelos e tabela comparativa** (1 pág): tabela principal (estratégia × algoritmo × F1-macro, F1 anomaly, precisão, recall), discussão de quem ganha e por quê.
 6. **Resultado final e explicabilidade** (¾ pág): estimativa OOF, F1-macro oficial divulgado pela professora (se houver), matriz de confusão OOF, importâncias/SHAP, 1 exemplo local.

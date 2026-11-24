@@ -12,12 +12,18 @@
 # (4) normalização/transformação numérica e (5) redução de dimensionalidade. Somamos dois
 # problemas que a Etapa 1 encontrou na base: valores impossíveis e valores ausentes.
 #
-# **Resumo dos resultados** (F1-macro de CV agrupada 5-fold no treino; regra: só troca a opção
-# mais simples por outra se o ganho passar de 1 desvio-padrão)
+# **Resumo dos resultados** (F1-macro de CV agrupada 5-fold no treino, em **todas as linhas**, como
+# a métrica oficial; regra: só troca a opção mais simples por outra se o ganho passar de 1
+# desvio-padrão)
 #
+# - **Escala da métrica:** com os 1.702 grupos de linhas idênticas e rótulos opostos na conta, todos
+#   os resultados razoáveis ficam entre 0,85 e 0,88, e nem um classificador perfeito passaria de
+#   0,905; o teto é aritmético, não falha dos modelos. As
+#   diferenças entre técnicas são de milésimos, e a regra de 1 dp é o que separa ganho de ruído.
 # - **Redundância/inconsistência:** só o boosting ganha com a limpeza de rótulos. No HGB,
-#   `majority_label` sobe de 0,9754 para 0,9820. RF (bagging) e MLP não mudam além do ruído, e
-#   reclassificar os conflitos com um modelo (`relabel_model`) não supera a remoção simples.
+#   `drop_inconsistent` sobe de 0,8777 para 0,8821 (e o dp cai de 0,0025 para 0,0009). RF (bagging)
+#   e MLP não mudam além do ruído, e reclassificar os conflitos com um modelo (`relabel_model`) não
+#   supera a remoção simples.
 # - **Valores impossíveis:** tratá-los como ausentes (`nan`) é ao menos tão bom quanto saturar ou
 #   manter, nas duas famílias testadas.
 # - **Ausentes:** NaN nativo no HGB e mediana no RF e no MLP. O indicador de ausência não ajudou,
@@ -26,13 +32,13 @@
 #   one-hot com raras agrupadas. Nenhuma alternativa passa da regra.
 # - **Balanceamento:** nenhuma das 7 técnicas testadas supera `none`. RUS e `class_weight` pioram.
 #   Com o limiar de decisão ajustado por OOF, o desbalanceamento 16:1 já é tratado na decisão.
-# - **Transformação numérica:** no MLP, `log1p` + padronização é a melhor (0,9641); sem o `log1p`
-#   cai para 0,9551.
-# - **Redução:** seleção por árvores (`tree_select`) é a única que não perde (RF: 0,9813) e mantém
-#   os atributos originais. O PCA perde nas duas famílias, mesmo com dados padronizados.
-# - **Robustez (CV 3×5):** o ganho da limpeza de rótulos no HGB se confirma (0,9741 → 0,9824). O
-#   ganho do `tree_select` no RF não se confirma (+0,0008): ele fica por desempenho equivalente com
-#   metade das colunas e atributos originais, não por ser melhor.
+# - **Transformação numérica:** no MLP, `log1p` + padronização é a melhor (0,8711); sem o `log1p`
+#   cai para 0,8654.
+# - **Redução:** nenhuma técnica passa da regra. A seleção por árvores (`tree_select`) é a única que
+#   não perde (RF: 0,8819 contra 0,8808 ± 0,0018, ganho abaixo de 1 dp). O PCA perde nas duas
+#   famílias, mesmo com dados padronizados.
+# - **Robustez (CV 3×5):** o ganho da limpeza de rótulos no HGB se confirma (0,8777 → 0,8815). O
+#   `tree_select` no RF segue empatado com não reduzir.
 #
 # **Índice**
 # 0. Configuração e política de dados
@@ -63,7 +69,7 @@ import warnings; warnings.filterwarnings("ignore")
 import numpy as np, pandas as pd, matplotlib.pyplot as plt, seaborn as sns, sklearn, imblearn
 from IPython.display import display
 from nslkdd import ExperimentLog, config, load_train
-from nslkdd.data import conflict_mask, evaluation_mask
+from nslkdd.data import conflict_mask
 from nslkdd.models import make_model
 from nslkdd.preprocessing import DomainCleaner, signed_log1p
 from nslkdd.search import AXES, FAMILIES, FOLD_JOBS, coordinate_search, describe, threads
@@ -104,15 +110,18 @@ print("X:", X.shape, "| classes:", y.value_counts().to_dict())
 # **Validação.** `StratifiedGroupKFold` com 5 folds, agrupado por duplicata: as 13.067 cópias da
 # Etapa 1 nunca ficam uma no treino e outra na validação, o que inflaria a nota.
 #
-# **Métrica.** F1-macro, a métrica oficial. Cada fold é pontuado só nas linhas que medem
-# generalização: uma por grupo de cópias, sem rótulo contraditório. Nos 1.702 grupos com a mesma
-# linha rotulada com as duas classes, nenhum modelo acerta mais que metade, e esse ruído esconde
-# as diferenças entre técnicas. O F1-macro sobre todas as linhas (`f1_macro_bruto`) aparece como
-# contraste, mas não decide nada: fica preso perto de 0,88 pelos conflitos.
+# **Métrica.** F1-macro em **todas as linhas** do fold de validação, cópias e conflitos incluídos,
+# porque é assim que a professora calcula a métrica oficial no teste. Nos 1.702 grupos com a mesma
+# linha rotulada com as duas classes (3.730 linhas), a linha recebe uma única previsão e parte das
+# cópias sempre erra. Mesmo um classificador perfeito fora dos conflitos, que escolhesse o melhor
+# rótulo em cada conflito, ficaria em 0,905; os modelos reais ficam perto de 0,88. Não é falha do
+# modelo nem vazamento, é aritmética do ruído de rótulo. Como contraste, a coluna `f1_sem_conflito`
+# mostra o mesmo modelo, com o mesmo limiar, pontuado só nas linhas únicas e sem conflito
+# (`evaluation_mask`); ela não decide nada e não estima a nota.
 #
 # **Limiar de decisão.** O F1-macro depende do ponto de corte da probabilidade. Em cada fold, o
-# limiar é escolhido nas previsões out-of-fold dos *outros* folds, então o fold pontuado nunca
-# ajuda a escolher o próprio limiar.
+# limiar é escolhido nas previsões out-of-fold dos *outros* folds (todas as linhas, como a métrica),
+# então o fold pontuado nunca ajuda a escolher o próprio limiar.
 #
 # **Busca por coordenadas.** Testar todas as combinações seria inviável (5 × 3 × 5 × 5 × 8 × 5 × 5
 # opções). Variamos **um eixo por vez**, com os demais fixos na melhor escolha até então, na ordem
@@ -152,7 +161,7 @@ print(f"{len(results)} configurações avaliadas em {results['segundos'].sum() /
 # margem que uma alternativa precisa vencer.
 
 # %%
-COLS = ["familia", "opcao", "f1_macro", "dp", "ganho_vs_ref", "f1_macro_bruto",
+COLS = ["familia", "opcao", "f1_macro", "dp", "ganho_vs_ref", "f1_sem_conflito",
         "precision_anomaly", "recall_anomaly", "limiar", "escolhida"]
 
 
@@ -243,16 +252,22 @@ plot_axis("redundancia", "Redundância e inconsistência de instâncias")
 
 # %% [markdown]
 # **O que se conclui.**
-# - **HGB:** a limpeza de rótulos ajuda claramente. `majority_label` (0,9820 ± 0,0015) e
-#   `drop_inconsistent` (0,9808) superam `none` (0,9754 ± 0,0036) por mais de 1 dp. O boosting
-#   ajusta cada árvore aos erros das anteriores, então insiste em acertar exemplos com rótulo
-#   trocado e acaba memorizando o ruído. Removê-los antes do ajuste corrige isso. Escolha:
-#   `majority_label`, que aproveita a informação dos grupos com três ou mais cópias.
-# - **RF:** nenhuma estratégia passa da regra (todas entre 0,9776 e 0,9791). O bagging já é robusto
+# - **HGB:** a limpeza de rótulos ajuda claramente. `drop_inconsistent` (0,8821 ± 0,0009),
+#   `majority_label` (0,8815) e `relabel_model` (0,8814) superam `none` (0,8777 ± 0,0025) por mais
+#   de 1 dp. O boosting ajusta cada árvore aos erros das anteriores, então insiste em acertar
+#   exemplos com rótulo trocado e acaba memorizando o ruído, o que prejudica também as linhas
+#   vizinhas, sem conflito. Removê-los antes do ajuste corrige isso. As três limpezas empatam entre
+#   si; pela regra, fica a primeira que passa de 1 dp e não é superada: `drop_inconsistent`.
+# - A limpeza vale mesmo pontuando todas as linhas, conflitos incluídos: os conflitos saem só do
+#   **treino** de cada fold. Na validação eles continuam, e o modelo mais limpo erra menos no resto.
+# - **RF:** nenhuma estratégia passa da regra (todas entre 0,8799 e 0,8816). O bagging já é robusto
 #   a ruído de rótulo: cada árvore vê uma amostra diferente, e o voto dilui os exemplos trocados.
 #   Fica `none`.
-# - **MLP:** `drop_inconsistent` (0,9657) não supera `none` (0,9641 ± 0,0038) por 1 dp, e
-#   `drop_duplicates` piora. Fica `none`.
+# - **MLP:** nenhuma limpeza supera `none` (0,8711 ± 0,0044), e `drop_duplicates` piora. Fica
+#   `none`.
+# - A coluna `f1_sem_conflito` (mesmo modelo e limiar, linhas únicas e sem conflito) conta a mesma
+#   história numa escala maior (HGB: 0,9748 → 0,9815): o ganho da limpeza não vem das linhas em
+#   conflito.
 # - **`relabel_model` não compensou** em nenhuma família: recuperar parte dos conflitos com um
 #   modelo não superou simplesmente removê-los. É um resultado negativo útil: a informação extra
 #   não paga o risco de propagar os erros do próprio modelo.
@@ -291,10 +306,10 @@ display(axis_table("dominio"))
 plot_axis("dominio", "Valores impossíveis")
 
 # %% [markdown]
-# **O que se conclui.** `nan` é a melhor opção nas duas famílias testadas (HGB 0,9820; MLP 0,9641).
-# No HGB, `none` e `clip` perdem o mesmo (cerca de 0,0016). No MLP, `clip` empata e manter o valor
-# (`none`) perde 0,005: um valor como 600 em uma taxa vira, depois da padronização, um ponto extremo
-# que distorce os pesos da rede. O RF não foi testado neste eixo: a escolha das árvores já estava coberta pelo HGB, e
+# **O que se conclui.** `nan` é a melhor opção nas duas famílias testadas (HGB 0,8821; MLP 0,8711).
+# No HGB, `none` e `clip` perdem menos de 0,001, dentro do ruído. No MLP, `clip` empata e manter o
+# valor (`none`) perde 0,003: um valor como 600 em uma taxa vira, depois da padronização, um ponto
+# extremo que distorce os pesos da rede. O RF não foi testado neste eixo: a escolha das árvores já estava coberta pelo HGB, e
 # a regra manteria a referência. Fica `nan` em todas as famílias.
 
 # %% [markdown]
@@ -331,12 +346,12 @@ plot_axis("imputacao", "Imputação de ausentes")
 
 # %% [markdown]
 # **O que se conclui.**
-# - **HGB:** NaN nativo (0,9820) fica à frente da mediana (0,9811) e do indicador (0,9814).
+# - **HGB:** NaN nativo (0,8821) fica à frente da mediana (0,8817) e do indicador (0,8814).
 #   Nenhuma imputação supera a referência, e o NaN nativo é o mais simples: o modelo aprende
 #   sozinho o que o ausente significa em cada atributo.
-# - **RF:** NaN nativo (0,9801) e mediana (0,9791) empatam dentro de 1 dp. Fica a mediana.
-# - **MLP:** mediana (0,9641) e iterativa (0,9639) empatam; média perde pouco e o indicador perde
-#   0,015. O indicador dobra o número de colunas numéricas com sinais binários fracos, e a rede
+# - **RF:** as quatro opções empatam (0,8807 a 0,8811). Fica a mediana, a referência.
+# - **MLP:** a mediana (0,8711) fica à frente; média (0,8692) e iterativa (0,8685) perdem pouco, e
+#   o indicador perde 0,012. O indicador dobra o número de colunas numéricas com sinais binários fracos, e a rede
 #   ajusta ruído com eles.
 # - O indicador não melhorou em nenhuma família, apesar do MNAR em `dst_host_serror_rate`. O sinal
 #   do ausente nesse atributo é pequeno perto do que os outros 40 atributos já informam. Relatamos
@@ -381,11 +396,11 @@ plot_axis("codificacao", "Codificação de service")
 
 # %% [markdown]
 # **O que se conclui.**
-# - **RF:** as cinco opções empatam dentro de 1 dp (0,9766 a 0,9806). Fica `onehot`, a referência.
+# - **RF:** as cinco opções empatam dentro de 1 dp (0,8800 a 0,8812). Fica `onehot`, a referência.
 #   O `target` é o pior: concentrar a informação de 67 categorias em um número esconde
 #   combinações (`service` × `flag`) que as árvores aproveitam no one-hot.
-# - **MLP:** `onehot` é o melhor (0,9641). `frequency` (0,9569) e `target` (0,9516) perdem mais
-#   de 1 dp. Para a rede, uma só coluna numérica força uma relação monotônica entre a categoria e
+# - **MLP:** `onehot_rare` tem a maior média (0,8730), mas o ganho (0,0019) fica abaixo de 1 dp
+#   (0,0044), então fica `onehot`. `frequency` (0,8675) e `target` (0,8651) perdem. Para a rede, uma só coluna numérica força uma relação monotônica entre a categoria e
 #   a saída, o que não existe: serviços com frequência parecida têm perfis de ataque opostos.
 # - O alerta do material sobre alta cardinalidade se confirma só em parte. A cauda é longa (50
 #   categorias com menos de 0,1% das linhas cada), mas essas colunas raras quase não pesam: agrupá-las
@@ -420,8 +435,8 @@ plot_axis("balanceamento", "Balanceamento de classes")
 
 # %% [markdown]
 # **O que se conclui.**
-# - **Nenhuma técnica supera `none`** em nenhuma família. No RF, SMOTE e SMOTE + Tomek ficam na
-#   frente por pouco (0,9806 e 0,9807 contra 0,9791 ± 0,0021), dentro do ruído. Escolha: `none`.
+# - **Nenhuma técnica supera `none`** em nenhuma família. No RF, SMOTE + Tomek fica na frente por
+#   pouco (0,8816 contra 0,8808 ± 0,0018), dentro do ruído. Escolha: `none`.
 # - **RUS piora** em RF e MLP: descartar 80% dos `normal` perde informação sobre o tráfego legítimo,
 #   e os falsos positivos sobem. `class_weight` também piora no RF.
 # - **Por que balancear não ajuda aqui.** O F1-macro é calculado depois de escolher o limiar de
@@ -432,7 +447,7 @@ plot_axis("balanceamento", "Balanceamento de classes")
 #   dados de treino.
 # - **Limitação do SMOTE:** ele roda depois do one-hot e interpola as colunas binárias, gerando
 #   valores fracionários (meio `http`, meio `ftp`) que não existem em conexões reais. Isso
-#   explica parte do resultado fraco no MLP, sobretudo do `borderline_smote` (0,9318).
+#   explica parte do resultado fraco no MLP, sobretudo do `borderline_smote` (0,8548).
 
 # %% [markdown]
 # ## 7. Normalização e transformação numérica (requisito 4)
@@ -469,13 +484,13 @@ plot_axis("escala", "Normalização e transformação numérica (MLP)")
 
 # %% [markdown]
 # **O que se conclui.**
-# - `log1p` + padronização é a melhor opção (0,9641 ± 0,0038). Sem o `log1p` cai para 0,9551: com
+# - `log1p` + padronização é a melhor opção (0,8711 ± 0,0044). Sem o `log1p` cai para 0,8654: com
 #   assimetria acima de 100, a padronização sozinha deixa quase todas as linhas espremidas perto
 #   de zero e poucas linhas em valores enormes, e a rede não consegue separar o tráfego comum.
-# - `minmax` (0,9574) sofre o mesmo efeito, porque o máximo é definido por poucas linhas extremas.
-# - `robust` é o pior (0,9485): em atributos com mais da metade dos valores iguais a zero, o
+# - `minmax` (0,8669) sofre o mesmo efeito, porque o máximo é definido por poucas linhas extremas.
+# - `robust` é o pior (0,8623): em atributos com mais da metade dos valores iguais a zero, o
 #   intervalo interquartil é zero ou quase, e a escala explode.
-# - `quantile` (0,9584) resolve a cauda, mas achata as diferenças entre valores grandes, que são
+# - `quantile` (0,8646) resolve a cauda, mas achata as diferenças entre valores grandes, que são
 #   justamente as que separam alguns ataques de volume.
 
 # %% [markdown]
@@ -498,10 +513,10 @@ plot_axis("escala", "Normalização e transformação numérica (MLP)")
 
 # %%
 display(axis_table("reducao"))
-plot_axis("reducao", "Redução de dimensionalidade (eixo cortado em 0,93)", xlim=(0.93, 0.99))
+plot_axis("reducao", "Redução de dimensionalidade (eixo cortado em 0,85)", xlim=(0.85, 0.89))
 
 # %% [markdown]
-# **O PCA no RF (0,69) é um artefato da comparação, não da técnica.** O RF usa `scaling="none"`, e
+# **O PCA no RF (0,72) é um artefato da comparação, não da técnica.** O RF usa `scaling="none"`, e
 # o PCA sem padronização é dominado pelos atributos de maior variância: `src_bytes` e `dst_bytes`,
 # na casa dos milhões, ocupam os primeiros componentes, e as taxas (entre 0 e 1) praticamente
 # somem. Para uma comparação justa, rodamos o PCA no RF com os dados padronizados e com `log1p`,
@@ -515,44 +530,47 @@ for option in [{"reduction": "none"}, {"reduction": "pca"}]:
     r = log.run("etapa2_reducao_pca_justo", "RF", make_model("RF", threads("RF")), X, y, groups,
                 params, n_jobs=FOLD_JOBS)
     fair[describe(option)] = {"f1_macro": r["f1_macro_mean"], "dp": r["f1_macro_std"],
-                              "f1_macro_bruto": r["f1_macro_noisy_mean"]}
+                              "f1_sem_conflito": r["f1_macro_clean_mean"]}
 display(pd.DataFrame(fair).T.rename_axis("RF com standard + log1p"))
 
 # %% [markdown]
 # **O que se conclui.**
-# - Com os dados padronizados, o PCA no RF deixa de ser um desastre, mas ainda perde para não
-#   reduzir (ver tabela acima). No MLP também perde (0,9509 contra 0,9641). O PCA combina os
+# - Com os dados padronizados, o PCA no RF deixa de ser um desastre (0,8686), mas ainda perde para
+#   não reduzir (0,8815, ver tabela acima). No MLP também perde (0,8655 contra 0,8711). O PCA combina os
 #   atributos em direções de **maior variância**, que não são necessariamente as que separam as
 #   classes, e o RF perde a capacidade de dividir por um atributo original de cada vez.
 # - `kbest_f` e `kbest_mi` com 30 colunas perdem nas duas famílias: o critério univariado descarta
 #   colunas que só ajudam em combinação com outras (por exemplo, categorias de `service` que
 #   importam só com certas `flag`).
-# - **`tree_select` é a única que ajuda:** no RF, 0,9813 ± 0,0020 contra 0,9791 ± 0,0021 (ganho de
-#   0,0022, logo acima de 1 dp). No MLP, empata (0,9648 contra 0,9641). A seleção por árvores
-#   avalia as colunas em conjunto e mantém só as de importância acima da mediana; as descartadas
-#   (como as dummies de `service` raras) quase não são usadas pelas árvores.
-# - Escolha: `tree_select` no RF; `none` no MLP. Uma vantagem extra para a Etapa 4: a seleção
-#   mantém os **atributos originais**, o que preserva a explicabilidade, ao contrário do PCA.
-# - O ganho do `tree_select` no RF passa da regra por pouco. A Seção 9 confere se ele se sustenta
-#   com mais repetições.
+# - **`tree_select` é a única que não perde, mas não passa da regra:** no RF, 0,8819 ± 0,0016
+#   contra 0,8808 ± 0,0018 (ganho de 0,0011, abaixo de 1 dp). No MLP, também empata (0,8724 contra
+#   0,8711 ± 0,0044). A seleção por árvores avalia as colunas em conjunto e mantém só as de
+#   importância acima da mediana; as descartadas (como as dummies de `service` raras) quase não são
+#   usadas pelas árvores, por isso ela não perde nada.
+# - Escolha: `none` nas duas famílias, pela regra. A Seção 9 confere com mais repetições se o
+#   `tree_select` no RF esconde um ganho real.
 
 # %% [markdown]
 # ## 9. Robustez das escolhas (CV repetida 3×5)
 #
-# A busca por coordenadas faz muitas comparações, e algumas escolhas passaram da regra por pouco.
-# Para conferir se as duas mudanças adotadas são reais, repetimos a CV 3 vezes (3 × 5 = 15 folds,
-# com sementes diferentes) comparando a configuração de partida com a escolhida. O MLP não entra:
-# a busca manteve a configuração de partida em todos os eixos.
+# A busca por coordenadas faz muitas comparações, e as diferenças são de milésimos. Repetimos a CV
+# 3 vezes (3 × 5 = 15 folds, com sementes diferentes) em dois casos: no HGB, a configuração de
+# partida contra a escolhida (a única mudança adotada); no RF, a escolhida (igual à de partida)
+# contra o `tree_select`, a alternativa que ficou mais perto da regra. O MLP não entra: a busca
+# manteve a configuração de partida em todos os eixos.
 
 # %%
 robust_rows = []
-for family in ["HGB_native", "RF"]:
-    for label, params in [("partida", FAMILIES[family]), ("escolhida", best[family])]:
+pairs = {"HGB_native": [("partida", FAMILIES["HGB_native"]), ("escolhida", best["HGB_native"])],
+         "RF": [("escolhida", best["RF"]),
+                ("tree_select", {**best["RF"], "reduction": "tree_select"})]}
+for family, configs in pairs.items():
+    for label, params in configs:
         r = log.run("etapa2_robustez", family, make_model(family, threads(family)), X, y, groups,
                     params, n_repeats=3, n_jobs=FOLD_JOBS)
         robust_rows.append({"familia": family, "configuracao": label,
                             "f1_macro": r["f1_macro_mean"], "dp": r["f1_macro_std"],
-                            "f1_macro_bruto": r["f1_macro_noisy_mean"],
+                            "f1_sem_conflito": r["f1_macro_clean_mean"],
                             "segundos": r["cv_seconds"]})
 robust = pd.DataFrame(robust_rows)
 robust["ganho"] = (robust["f1_macro"] - robust.groupby("familia")["f1_macro"].transform("first")).round(4)
@@ -560,16 +578,13 @@ display(robust)
 
 # %% [markdown]
 # **O que se conclui.**
-# - **HGB, limpeza de rótulos: confirmada.** Com 15 folds, `majority_label` fica em 0,9824 ± 0,0022
-#   contra 0,9741 ± 0,0033 da partida, ganho de 0,0083, mais de 2 dp. É a mudança de
-#   pré-processamento com efeito real nesta base.
-# - **RF, `tree_select`: não confirmada.** O ganho cai para 0,0008 (0,9806 contra 0,9798, dp 0,0031),
-#   bem abaixo de 1 dp. O ganho de 0,0022 da busca era, em boa parte, variação de amostragem dos
-#   5 folds, o risco previsível de fazer muitas comparações seguidas.
-# - **Decisão para o RF:** manter `tree_select`, mas pelo motivo certo. O desempenho é equivalente
-#   ao de não reduzir, com metade das colunas e só atributos originais, o que barateia o treino e
-#   facilita a explicabilidade da Etapa 4. No relatório, ele aparece como "equivalente", não como
-#   "melhor".
+# - **HGB, limpeza de rótulos: confirmada.** Com 15 folds, `drop_inconsistent` fica em
+#   0,8815 ± 0,0027 contra 0,8777 ± 0,0032 da partida: ganho de 0,0038, acima de 1 dp. É a mudança
+#   de pré-processamento com efeito real nesta base.
+# - **RF, `tree_select`: empate confirmado.** Com 15 folds, o ganho cai para 0,0003 (0,8812 contra
+#   0,8809, dp 0,0030), dez vezes menor que 1 dp. O ganho de 0,0011 da busca era variação de
+#   amostragem dos 5 folds. O RF fica sem redução.
+# - A coluna `f1_sem_conflito` confirma a leitura nas duas famílias.
 
 # %% [markdown]
 # ## 10. Tabela comparativa consolidada e configurações escolhidas
@@ -601,7 +616,7 @@ display(pd.DataFrame(best).T.fillna("—"))
 
 # %%
 final = results[results["escolhida"]].groupby("familia", sort=False).tail(1)[
-    ["familia", "f1_macro", "dp", "f1_macro_bruto", "precision_anomaly", "recall_anomaly"]]
+    ["familia", "f1_macro", "dp", "f1_sem_conflito", "precision_anomaly", "recall_anomaly"]]
 start = results.groupby("familia", sort=False).head(1)[["familia", "f1_macro"]]
 final = final.merge(start.rename(columns={"f1_macro": "F1 da partida"}), on="familia")
 final["ganho total"] = (final["f1_macro"] - final["F1 da partida"]).round(4)
@@ -612,20 +627,20 @@ display(final.set_index("familia"))
 #
 # | Requisito | Técnicas comparadas | Escolha | Justificativa |
 # |---|---|---|---|
-# | 1. Redundância/inconsistência | none, drop_duplicates, drop_inconsistent, majority_label, relabel_model | **majority_label** (HGB); none (RF, MLP) | o boosting memoriza rótulos trocados; o bagging dilui o ruído |
+# | 1. Redundância/inconsistência | none, drop_duplicates, drop_inconsistent, majority_label, relabel_model | **drop_inconsistent** (HGB); none (RF, MLP) | o boosting memoriza rótulos trocados; o bagging dilui o ruído |
 # | Valores impossíveis | nan, none, clip | **nan** | o valor original é irrecuperável; saturar inventa um dado |
 # | Ausentes | NaN nativo, média, mediana, mediana + indicador, iterativa | **NaN nativo** (HGB); **mediana** (RF, MLP) | empates: vence a opção mais simples que o modelo aceita |
 # | 2. Balanceamento | class_weight, ROS, RUS, SMOTE, Borderline-SMOTE, SMOTE+Tomek, híbrido | **nenhum** | o limiar OOF já trata o desbalanceamento; RUS perde informação |
 # | 3. Codificação de `service` | one-hot, one-hot com raras, frequência, target, ordinal, nativa | **one-hot** (RF, MLP); nativa (HGB) | sem ordem falsa; 70 mil linhas sustentam 67 colunas |
 # | 4. Transformação numérica | standard, minmax, robust, quantile, com e sem log1p | **log1p + standard** (MLP); nenhuma (árvores) | caudas longas; árvores são invariantes a escala |
-# | 5. Redução | PCA, SelectKBest (F, MI), seleção por árvores | **tree_select** (RF); nenhuma (MLP, HGB) | equivalente a não reduzir (CV 3×5), com metade das colunas e atributos originais; o PCA perde informação discriminante |
+# | 5. Redução | PCA, SelectKBest (F, MI), seleção por árvores | **nenhuma** | `tree_select` empata com não reduzir (CV 3×5); o PCA perde informação discriminante |
 #
 # **Lições para a Etapa 3.**
 # - O ganho real do pré-processamento veio da **limpeza de rótulos** no boosting. Os demais eixos
-#   pouco mudaram o resultado (e o único outro ganho, o `tree_select` no RF, não resistiu à CV
-#   repetida). O teto agora depende mais do algoritmo e dos hiperparâmetros do que do
-#   pré-processamento.
-# - As árvores (HGB 0,9824 e RF 0,9806 na CV 3×5) estão à frente do MLP (0,9641). Na Etapa 3, comparar ao
+#   pouco mudaram o resultado: nenhum outro eixo passou da regra. O teto agora depende mais do
+#   algoritmo e dos hiperparâmetros do que do pré-processamento, e todos esbarram no limite de
+#   0,905 imposto pelos rótulos contraditórios (os melhores modelos ficam perto de 0,88).
+# - As árvores (HGB 0,8815 e RF 0,8809 na CV 3×5) estão à frente do MLP (0,8711). Na Etapa 3, comparar ao
 #   menos HGB, XGBoost e RF com estas configurações, e incluir MLP, KNN e Naive Bayes como
 #   contraste, com ajuste de hiperparâmetros pelo mesmo protocolo de CV agrupada.
 # - Avaliar um ensemble (voto) das melhores árvores e congelar a configuração final em

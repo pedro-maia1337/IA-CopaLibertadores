@@ -13,23 +13,27 @@
 #
 # **Resumo dos resultados**
 #
-# Todas as medidas são F1-macro de CV agrupada por duplicata, só no treino.
+# Todas as medidas são F1-macro de CV agrupada por duplicata, só no treino, calculado em **todas as
+# linhas** do fold, como a métrica oficial. Os 1.702 grupos de linhas idênticas com rótulos opostos
+# limitam esse valor a 0,905 mesmo para um classificador perfeito; os modelos ficam perto de 0,88.
 #
-# - **Oito algoritmos comparados** (5-fold): HGB 0,9820, RF 0,9813, XGB 0,9786, Extra Trees 0,9741,
-#   MLP 0,9641, KNN 0,9518, Árvore de Decisão 0,8937, Naive Bayes 0,7763. Os ensembles de árvores
+# - **Oito algoritmos comparados** (5-fold): HGB 0,8821, RF 0,8808, XGB 0,8799, Extra Trees 0,8774,
+#   MLP 0,8711, KNN 0,8624, Árvore de Decisão 0,8403, Naive Bayes 0,7662. Os ensembles de árvores
 #   dominam; a árvore única e o Naive Bayes sofrem com o ruído de rótulo e com atributos correlacionados.
-# - **Ajuste de hiperparâmetros** (busca aleatória com o mesmo protocolo): quase nenhum ganho na
-#   primeira rodada; os padrões já estavam no platô.
-# - **Tentativas de ganho:** atributos derivados por linha (+0,0007 no HGB na CV 5-fold, que não se
-#   confirmou na CV 3×5), busca ampliada no HGB (melhor sorteio 0,9834), média de 5 sementes, votos
-#   e dois algoritmos fora da disciplina (LightGBM e CatBoost).
-# - **Finalistas em CV 3×5 (16 candidatos):** a maior média é a do voto HGB + LightGBM + CatBoost
-#   (0,9832 ± 0,0024), mas dez candidatos ficam a menos de 1 dp dele. Pelo critério declarado
+# - **Ajuste de hiperparâmetros** (busca aleatória com o mesmo protocolo): nenhum ganho na primeira
+#   rodada; os padrões já estavam no platô.
+# - **Tentativas de ganho:** atributos derivados por linha (pioram um pouco nos três modelos), busca
+#   ampliada no HGB (melhor sorteio 0,8828), média de 5 sementes, votos e dois algoritmos fora da
+#   disciplina (LightGBM e CatBoost).
+# - **Finalistas em CV 3×5 (15 candidatos):** a maior média é a do voto HGB + XGB + RF
+#   (0,8826 ± 0,0029), mas onze candidatos ficam a menos de 1 dp dele. Pelo critério declarado
 #   (empate vai para o mais simples), o escolhido é o **HGB da busca ampliada, com F1-macro
-#   0,9830 ± 0,0023** (precisão em `anomaly` 0,980, recall 0,955): um modelo único, da disciplina,
-#   empatado em média com o LightGBM e com desvio menor.
+#   0,8819 ± 0,0030** (precisão em `anomaly` 0,759, recall 0,798): um modelo único, da disciplina,
+#   9 vezes mais barato que o voto.
+# - **De onde vêm os erros:** no OOF, 1.706 dos 1.851 erros caem nas 3.730 linhas com rótulo
+#   contraditório. Fora delas, o modelo erra 145 de 66.103 linhas (F1-macro 0,983).
 # - **Configuração congelada** em `results/final_config.json`: HGB com categorias e NaN nativos,
-#   limpeza de rótulos `majority_label` e limiar de decisão ajustado por OOF.
+#   remoção dos conflitos no treino (`drop_inconsistent`) e limiar de decisão ajustado por OOF.
 #
 # **Índice**
 # 0. Configuração e política de dados
@@ -111,12 +115,16 @@ print("X:", X.shape, "| classes:", y.value_counts().to_dict())
 #
 # **Validação.** O mesmo protocolo da Etapa 2: `StratifiedGroupKFold` com 5 folds, agrupado por
 # duplicata (cópias nunca ficam uma no treino e outra na validação). A métrica principal é o
-# F1-macro nas linhas que medem generalização (uma por grupo de cópias, sem rótulo contraditório);
-# o F1-macro sobre todas as linhas (`f1_macro_noisy`) aparece como contraste.
+# F1-macro em **todas as linhas** do fold de validação, cópias e conflitos incluídos, porque é assim
+# que a métrica oficial é calculada no teste. Os 1.702 grupos de linhas idênticas com rótulos
+# opostos (3.730 linhas) limitam esse valor a 0,905 mesmo para um classificador perfeito (que
+# escolhesse o melhor rótulo em cada conflito); os modelos reais ficam perto de 0,88. O F1-macro nas
+# linhas únicas e sem conflito (`f1_macro_clean`) aparece só como contraste: mostra quanto do erro
+# é ruído de rótulo, mas não decide nada e não estima a nota.
 #
 # **Limiar de decisão.** Cada fold é pontuado com um limiar escolhido nas previsões out-of-fold dos
-# outros folds. No modelo final, `ThresholdClassifier` faz o mesmo: aprende o limiar por OOF dentro
-# do próprio treino.
+# outros folds (todas as linhas). No modelo final, `ThresholdClassifier` faz o mesmo: aprende o
+# limiar por OOF dentro do próprio treino, em todas as linhas.
 #
 # **Pré-processamento por algoritmo** (herdado da Etapa 2, `melhores_configuracoes.json`). Cada
 # família recebe a configuração vencedora da sua busca; os algoritmos sem busca própria herdam a da
@@ -170,7 +178,7 @@ ax.barh(b["model"], b["f1_macro_mean"], xerr=b["f1_macro_std"],
         color=[PALETTE[FAMILY[m]] for m in b["model"]], capsize=3)
 for i, v in enumerate(b["f1_macro_mean"]):
     ax.text(v + 0.004, i, f"{v:.4f}", va="center", fontsize=9)
-ax.set_xlim(0.7, 1.0)
+ax.set_xlim(round(b["f1_macro_mean"].min() - 0.05, 2), b["f1_macro_mean"].max() + 0.03)
 ax.set_xlabel("F1-macro (CV agrupada 5-fold, média ± dp)")
 ax.set_title("Algoritmos com hiperparâmetros padrão")
 handles = [plt.Rectangle((0, 0), 1, 1, color=c) for c in PALETTE.values()]
@@ -181,22 +189,25 @@ plt.show()
 
 # %% [markdown]
 # **O que se conclui.**
-# - **Os ensembles de árvores dominam.** HGB (0,9820), RF (0,9813) e XGB (0,9786) ficam
-#   praticamente empatados no topo, à frente de ET (0,9741). Os atributos do KDD são contagens e
+# - **Os ensembles de árvores dominam.** HGB (0,8821), RF (0,8808) e XGB (0,8799) ficam
+#   praticamente empatados no topo, à frente de ET (0,8774). Os atributos do KDD são contagens e
 #   taxas com limiares nítidos (ex.: `serror_rate` alto = varredura SYN), exatamente o que cortes
 #   de árvore capturam.
-# - **A árvore única (0,8937) perde 9 pontos para os ensembles.** Sem a média de bagging ou a
+# - **A árvore única (0,8403) perde 4 pontos para os ensembles.** Sem a média de bagging ou a
 #   correção sequencial do boosting, ela se ajusta ao ruído de rótulo (1.702 grupos contraditórios)
-#   e tem alta variância.
-# - **MLP (0,9641) e KNN (0,9518)** dependem de escala e de distâncias. Mesmo com `log1p` +
+#   e tem alta variância. Numa escala em que o teto é 0,905, é uma distância grande.
+# - **MLP (0,8711) e KNN (0,8624)** dependem de escala e de distâncias. Mesmo com `log1p` +
 #   padronização, a mistura de 67 colunas one-hot de `service` com taxas contínuas pesa contra
 #   eles.
-# - **Naive Bayes (0,7763 ± 0,042)** é o pior e o mais instável: supõe atributos independentes e
+# - **Naive Bayes (0,7662 ± 0,029)** é o pior e o mais instável: supõe atributos independentes e
 #   gaussianos, e os atributos de taxa são fortemente correlacionados (ex.: `serror_rate`,
 #   `srv_serror_rate`, `dst_host_serror_rate`) e concentrados em 0 e 1.
-# - O limiar ajustado fica bem abaixo de 0,5 nas árvores (0,2–0,4): com a classe `anomaly`
+# - O limiar ajustado fica abaixo de 0,5 em todos menos o NB (0,11–0,40): com a classe `anomaly`
 #   minoritária, baixar o corte troca alguns falsos positivos por mais acertos de ataque e aumenta
-#   o F1-macro.
+#   o F1-macro. No HGB e no XGB, que treinam sem os conflitos, o limiar cai mais (0,11 e 0,14): nos
+#   grupos empatados da validação, prever `anomaly` rende mais F1-macro que prever `normal`.
+# - A coluna `f1_macro_05_mean` (limiar fixo em 0,5) mostra o ganho do limiar ajustado: de 0,002
+#   no HGB a 0,008 no RF.
 #
 # Seguem para o ajuste de hiperparâmetros os três melhores (HGB, RF, XGB) e o MLP, que representa
 # as redes neurais citadas no enunciado.
@@ -205,8 +216,8 @@ plt.show()
 # ## 3. Ajuste de hiperparâmetros
 #
 # **Busca aleatória** (`ParameterSampler`, semente 42) com o mesmo protocolo de CV agrupada e o
-# mesmo registro. Não usamos `GridSearchCV` direto porque ele não aplica a máscara de avaliação
-# (pontuaria também cópias e conflitos) nem o limiar cruzado. Espaços de busca:
+# mesmo registro. Não usamos `GridSearchCV` direto porque ele não aplica o limiar cruzado (cada
+# fold pontuado com o limiar aprendido nos outros) e não grava no registro comum. Espaços de busca:
 
 # %%
 display(pd.DataFrame({m: {k: str(v) for k, v in s.items()} for m, s in SEARCH.items()}).T.fillna("—"))
@@ -245,14 +256,14 @@ fig.savefig(config.FIGURES / "mod_busca.png", dpi=150, bbox_inches="tight")
 plt.show()
 
 # %% [markdown]
-# **O que se conclui.** O ajuste de hiperparâmetros quase não rendeu, e é importante dizer isso:
-# - **HGB:** a melhor configuração empata com o padrão (0,9820). O padrão do catálogo já estava no
-#   platô.
-# - **RF e XGB:** o melhor sorteio fica *abaixo* do padrão (RF 0,9795 vs 0,9813; XGB 0,9781 vs
-#   0,9786). Com 6 a 12 sorteios, a busca não encontrou nada melhor que o padrão, que já vinha de
-#   valores consagrados para esses algoritmos.
-# - **MLP:** 0,9633 vs 0,9641, também empatado.
-# - A dispersão entre sorteios (até 0,01 no HGB) é maior que a diferença entre os melhores. Os
+# **O que se conclui.** O ajuste de hiperparâmetros não rendeu, e é importante dizer isso:
+# - **HGB:** o melhor sorteio (0,8817) fica um pouco abaixo do padrão (0,8821). O padrão do
+#   catálogo já estava no platô.
+# - **RF e XGB:** o melhor sorteio empata com o padrão (RF 0,8806 vs 0,8808; XGB 0,8800 vs 0,8799).
+#   Com 6 a 12 sorteios, a busca não encontrou nada melhor que o padrão, que já vinha de valores
+#   consagrados para esses algoritmos.
+# - **MLP:** 0,8721 vs 0,8711, também dentro do ruído.
+# - A dispersão entre sorteios (0,006 no HGB) é maior que a diferença entre os melhores. Os
 #   hiperparâmetros importam para fugir de configurações ruins (ex.: poucas iterações com taxa de
 #   aprendizado baixa), mas não diferenciam as boas.
 
@@ -303,11 +314,11 @@ eng_table["ganho"] = (eng_table["com atributos"] - eng_table["sem atributos"]).r
 display(eng_table)
 
 # %% [markdown]
-# **O que se conclui.** Só o HGB melhora com os atributos novos (+0,0007), e menos que 1 desvio-padrão
-# (0,0011). XGB e RF pioram um pouco (−0,0010 e −0,0009): colunas redundantes diluem a amostragem
-# de atributos (`colsample_bytree` no XGB, `max_features` no RF), e as árvores profundas desses
-# modelos já combinavam taxa e contagem sozinhas. A ideia segue como candidata no HGB e é tirada a
-# limpo na CV repetida da Seção 5.
+# **O que se conclui.** Nenhum modelo melhora com os atributos novos: HGB (−0,0009), XGB (−0,0017)
+# e RF (−0,0001) ficam iguais ou um pouco piores. Colunas redundantes diluem a amostragem de
+# atributos (`colsample_bytree` no XGB, `max_features` no RF), e as árvores desses modelos já
+# combinavam taxa e contagem sozinhas. A ideia segue para a busca ampliada e para a CV repetida da
+# Seção 5, para não descartá-la com base em uma única partição.
 #
 # ### 4.2 Busca ampliada no HGB
 #
@@ -340,12 +351,12 @@ plt.show()
 
 # %% [markdown]
 # **O que se conclui.** O melhor sorteio, sem atributos derivados (`min_samples_leaf=20`,
-# `max_leaf_nodes=31`, `max_iter=500`, `learning_rate=0,08`), chega a 0,9834 ± 0,0014. Ele combina
-# mais regularização por folha (20 exemplos no mínimo) com uma taxa de aprendizado maior. Mas a
-# mediana dos sorteios (0,9815) fica abaixo do HGB padrão: escolher o máximo de 20 sorteios dá
-# vantagem a quem teve sorte no particionamento da semente 42. Com atributos, a distribuição desloca
-# um pouco para cima (média de 0,9816 contra 0,9814), sem diferença real. `max_features < 1` não
-# aparece no topo. Os melhores de cada grupo seguem para a confirmação em CV 3×5.
+# `max_leaf_nodes=63`, `max_iter=500`, `learning_rate=0,08`, `max_features=0,7`), chega a
+# 0,8828 ± 0,0008. Ele combina mais regularização por folha (20 exemplos no mínimo) com uma taxa de
+# aprendizado maior e amostragem de colunas. Mas a média dos sorteios (0,8815) fica abaixo do HGB
+# padrão (0,8821): escolher o máximo de 20 sorteios dá vantagem a quem teve sorte no particionamento
+# da semente 42. Com atributos, a distribuição é praticamente a mesma (média de 0,8813). Os melhores
+# de cada grupo seguem para a confirmação em CV 3×5.
 #
 # ### 4.3 Algoritmos fora da disciplina: LightGBM e CatBoost
 #
@@ -357,7 +368,7 @@ plt.show()
 # - **CatBoost:** boosting com árvores simétricas (o mesmo corte em todo o nível) e codificação
 #   ordenada das categorias por estatísticas do alvo, calculada sem olhar o próprio exemplo.
 #
-# Os dois recebem o mesmo pré-processamento do HGB (limpeza de rótulos `majority_label`, NaN
+# Os dois recebem o mesmo pré-processamento do HGB (limpeza de rótulos `drop_inconsistent`, NaN
 # nativo) e tratam `protocol_type`, `service` e `flag` como categóricos (adaptador
 # `NativeCategoricalBoost`). Protocolo idêntico: padrão do catálogo, depois busca aleatória
 # (20 sorteios no LightGBM; 8 no CatBoost, que é cerca de 5 vezes mais lento).
@@ -382,19 +393,20 @@ for n, hp in ext_hps.items():
 
 # %% [markdown]
 # **O que se conclui.**
-# - **LightGBM:** o padrão (0,9818) já empata com o HGB padrão (0,9820). A busca encontra 0,9833
-#   com árvores pequenas (`num_leaves=15`), muitas iterações (1.500) e metade das colunas por árvore,
-#   empatado com o melhor HGB (0,9834). Faz sentido: os dois são boosting por histogramas e diferem
-#   em detalhes (crescimento por folha, amostragem de linhas e colunas).
-# - **CatBoost:** é o pior dos boosting (padrão 0,9709; melhor sorteio 0,9765) e o mais lento. As
-#   árvores simétricas usam o mesmo corte em todo um nível, o que é uma boa regularização em bases
-#   pequenas, mas limita a captura de regras muito específicas, como as dos ataques raros. A
-#   codificação por estatísticas do alvo também é afetada pelo ruído de rótulo.
+# - **LightGBM:** o padrão (0,8818) já empata com o HGB padrão (0,8821). A busca encontra 0,8822
+#   (`num_leaves=63`, 1.000 iterações, taxa 0,08), empatado com o HGB. Faz sentido: os dois são
+#   boosting por histogramas e diferem em detalhes (crescimento por folha, amostragem de linhas e
+#   colunas).
+# - **CatBoost:** é o pior dos boosting (padrão 0,8760; melhor sorteio 0,8777) e o mais lento (cerca
+#   de 5 vezes o tempo do HGB). As árvores simétricas usam o mesmo corte em todo um nível, o que é
+#   uma boa regularização em bases pequenas, mas limita a captura de regras muito específicas, como
+#   as dos ataques raros. Ele também treina com os conflitos removidos e sofre menos com isso, mas a
+#   codificação por estatísticas do alvo é afetada pelo ruído de rótulo restante.
 # - Os melhores de cada um seguem para a CV 3×5, sozinhos e em votos com o HGB.
 #
 # ## 5. Finalistas em CV repetida (3×5)
 #
-# Uma CV de 5 folds com uma semente só tem desvio-padrão de 0,001 a 0,002, da mesma ordem que as
+# Uma CV de 5 folds com uma semente só tem desvio-padrão de 0,001 a 0,003, da mesma ordem que as
 # diferenças entre os candidatos. Escolher o máximo de 40 sorteios nessas condições tende a premiar
 # a sorte do particionamento. Por isso, os finalistas são reavaliados com **3 repetições** da CV
 # agrupada (sementes 42, 43 e 44; 15 folds), e é essa medida que decide (critério da Seção 1).
@@ -419,7 +431,7 @@ candidates += external_finalists(best, hgb2, ext_hps)
 final_results = run_finalists(log, X, y, groups, candidates, verbose=False)
 
 final_board = pd.DataFrame([{"modelo": n, **{k: r[k] for k in [
-    "f1_macro_mean", "f1_macro_std", "f1_macro_05_mean", "f1_macro_noisy_mean", "f1_anomaly_mean",
+    "f1_macro_mean", "f1_macro_std", "f1_macro_05_mean", "f1_macro_clean_mean", "f1_anomaly_mean",
     "precision_anomaly_mean", "recall_anomaly_mean", "balanced_accuracy_mean", "threshold_mean",
     "cv_seconds"]}} for n, r in final_results.items()])
 # Empate exato na média (4 casas): fica à frente o de menor desvio-padrão (mais estável).
@@ -437,7 +449,8 @@ colors = ["#2a78d6" if t else "#b0b0b0" for t in fb["empata com o 1º"]]
 ax.barh(fb["modelo"], fb["f1_macro_mean"], xerr=fb["f1_macro_std"], color=colors, capsize=3)
 ax.axvline(leader["f1_macro_mean"] - leader["f1_macro_std"], color="#eb6834", ls="--",
            label="1º colocado − 1 dp")
-ax.set_xlim(0.955, 0.99)
+pad = 2 * fb["f1_macro_std"].max()
+ax.set_xlim(fb["f1_macro_mean"].min() - pad, fb["f1_macro_mean"].max() + pad)
 ax.set_xlabel("F1-macro (CV agrupada 3×5, média ± dp)")
 ax.set_title("Finalistas (azul: empatados com o 1º pelo critério de 1 dp)")
 ax.legend(loc="lower right")
@@ -473,29 +486,32 @@ print("Escolhido pelo critério:", chosen)
 
 # %% [markdown]
 # **O que se conclui.**
-# - **Dez candidatos ficam a menos de 1 dp do 1º.** O voto HGB + LightGBM + CatBoost tem a maior média
-#   (0,9832 ± 0,0024), mas o HGB da busca ampliada, o LightGBM e o voto HGB + LightGBM ficam a
-#   0,0002 dele (0,9830). Essa diferença é dez vezes menor que o desvio entre folds. Pelo critério,
-#   vence o mais simples: o **HGB da busca ampliada**, um modelo único da disciplina, sem passos
-#   extras. Ele empata em média com o LightGBM e tem desvio menor (0,0023 contra 0,0030).
-# - **O ganho do HGB da busca ampliada sobre o da primeira rodada (0,9823) está dentro do ruído.**
+# - **Onze candidatos ficam a menos de 1 dp do 1º.** O voto HGB + XGB + RF tem a maior média
+#   (0,8826 ± 0,0029), mas o HGB da busca ampliada fica a 0,0007 dele (0,8819 ± 0,0030), uma
+#   diferença quatro vezes menor que o desvio entre folds. Pelo critério, vence o mais simples: o
+#   **HGB da busca ampliada**, um modelo único da disciplina, sem passos extras, que treina em cerca
+#   de 1/9 do tempo do voto.
+# - **O ganho do HGB da busca ampliada sobre o da primeira rodada (0,8811) está dentro do ruído.**
 #   Além disso, a busca usou a partição da semente 42, que também entra na CV 3×5, o que dá um leve
 #   viés otimista a favor dele.
-# - **Algoritmos fora da disciplina:** o LightGBM ajustado alcança o HGB (0,9830), mas não o supera;
-#   os dois são boosting por histogramas, com ideias muito parecidas. O CatBoost fica atrás
-#   (0,9778), abaixo até do RF.
-# - **Atributos derivados não se confirmam:** na CV 3×5, o HGB com atributos (0,9820) fica abaixo do
-#   HGB sem eles (0,9823). O +0,0007 da Seção 4.1 era ruído da partição.
-# - **Ensembles não ajudam de forma mensurável:** média de sementes (0,9827), votos entre HGBs
-#   (0,9829), HGB + LightGBM (0,9830), HGB + CatBoost (0,9824), HGB + XGB + RF (0,9821) e o voto
-#   triplo (0,9832, com 8 vezes o custo) ficam todos dentro do ruído do modelo único. Os modelos
-#   fortes erram nos mesmos exemplos, então tirar a média corrige pouco. Isso indica um teto perto de
-#   0,983 com os 41 atributos de rede.
-# - **RF, CatBoost, XGB e MLP ficam fora do empate** (0,9802, 0,9778, 0,9780 e 0,9640).
-# - O F1-macro **bruto** (todas as linhas, com cópias e conflitos) fica em 0,88 para todos: é o teto
-#   imposto pelos 1.702 grupos com rótulos contraditórios, que nenhum modelo acerta.
+# - **Algoritmos fora da disciplina:** o LightGBM ajustado (0,8815) empata com o HGB, mas não o
+#   supera; os dois são boosting por histogramas, com ideias muito parecidas. O CatBoost fica atrás
+#   (0,8770), fora do empate.
+# - **Atributos derivados não se confirmam:** na CV 3×5, o HGB com atributos (0,8803) fica abaixo do
+#   HGB sem eles (0,8811), e o da busca ampliada com atributos (0,8818) empata com o sem (0,8819).
+# - **Ensembles não ajudam de forma mensurável:** média de sementes (0,8820), voto entre HGBs
+#   (0,8821), HGB + LightGBM (0,8822), HGB + CatBoost (0,8813), HGB + LightGBM + CatBoost (0,8821) e
+#   HGB + XGB + RF (0,8826, com 9 vezes o custo) ficam todos dentro do ruído do modelo único. Os
+#   modelos fortes erram nos mesmos exemplos, então tirar a média corrige pouco.
+# - **XGB, CatBoost e MLP ficam fora do empate** (0,8790, 0,8770 e 0,8716). O RF (0,8812) entra no
+#   empate na CV 3×5.
+# - **Contraste sem conflitos:** a coluna `f1_macro_clean_mean` (mesmos modelos e limiares, só nas
+#   linhas únicas e sem rótulo contraditório) fica entre 0,962 e 0,982 e ordena os modelos quase do
+#   mesmo jeito. A diferença para os ~0,88 da métrica oficial é o efeito dos conflitos, que pesa
+#   igual para todos os modelos. Ela não estima a nota e não decide nada.
 # - **Custo do rigor:** sozinhas, sem nenhum atributo de rede, as colunas de vazamento
-#   (`score_ids_legado` etc.) já alcançam F1-macro de 0,992 (Etapa 1). Abrir mão delas é a decisão correta: são posteriores ao evento e não
+#   (`score_ids_legado` etc.) já alcançam F1-macro de 0,889 na mesma métrica (Etapa 1), acima de
+#   todos os modelos de tráfego. Abrir mão delas é a decisão correta: são posteriores ao evento e não
 #   existiriam no momento de classificar uma conexão real.
 
 # %% [markdown]
@@ -567,10 +583,10 @@ display(table_final.reset_index(drop=True).round(4))
 
 # %% [markdown]
 # **Qual pré-processamento ajuda qual algoritmo, e por quê.**
-# - **A limpeza de rótulos (`majority_label`) ajuda o boosting, mas não o bagging.** No HGB, ela
-#   vale cerca de 0,007 de F1-macro (Etapa 2). O boosting ajusta cada árvore aos erros das
-#   anteriores e acaba perseguindo exemplos com rótulo trocado. O RF tira a média de árvores
-#   treinadas em amostras diferentes, o que já dilui o ruído.
+# - **A limpeza de rótulos (`drop_inconsistent`) ajuda o boosting, mas não o bagging.** No HGB, ela
+#   vale cerca de 0,004 de F1-macro (Etapa 2), mais de 1 dp. O boosting ajusta cada árvore aos
+#   erros das anteriores e acaba perseguindo exemplos com rótulo trocado. O RF tira a média de
+#   árvores treinadas em amostras diferentes, o que já dilui o ruído.
 # - **Escala e `log1p` importam para MLP e KNN, não para árvores.** Árvores são invariantes a
 #   transformações monotônicas: só a ordem dos valores importa para os cortes. No MLP, o `log1p`
 #   comprime as caudas de `src_bytes`/`dst_bytes`, que sem ele dominariam os gradientes.
@@ -578,35 +594,43 @@ display(table_final.reset_index(drop=True).round(4))
 #   único corte). RF, MLP e KNN usam one-hot, que não impõe ordem falsa entre serviços.
 # - **Ausentes:** só HGB e XGB tratam NaN de forma nativa (aprendem para que lado da divisão vai o
 #   ausente). Os demais precisam de imputação pela mediana.
-# - **Redução:** a seleção por árvores no RF e o `SelectKBest` no KNN reduzem o custo e, no KNN,
-#   tiram dimensões irrelevantes do cálculo de distâncias. O PCA perdeu em todos os testes da
-#   Etapa 2.
-# - **Balanceamento:** nenhum. O limiar de decisão ajustado por OOF (0,24–0,42 nos finalistas) faz o
+# - **Redução:** nenhuma técnica passou da regra na Etapa 2 (a seleção por árvores empatou com não
+#   reduzir no RF). O `SelectKBest` do KNN serve para tirar dimensões irrelevantes do cálculo de
+#   distâncias. O PCA perdeu em todos os testes da Etapa 2.
+# - **Balanceamento:** nenhum. O limiar de decisão ajustado por OOF (0,04–0,36 nos finalistas) faz o
 #   papel do balanceamento sem criar exemplos sintéticos.
-# - **A acurácia esconde as diferenças:** ela vai de 95,4% (NB) a 99,8% (HGB), enquanto o F1-macro
-#   vai de 0,78 a 0,98. A árvore única tem 98,4% de acurácia, mas só 69% de precisão em `anomaly`.
+# - **A acurácia esconde as diferenças:** ela vai de 93,2% (NB) a 97,3% (HGB), enquanto o F1-macro
+#   vai de 0,77 a 0,88. A árvore única tem 96,1% de acurácia, mas só 63% de precisão em `anomaly`.
 
 # %% [markdown]
 # ## 7. Análise dos erros do modelo escolhido (OOF)
 #
 # Previsões out-of-fold do modelo escolhido (CV agrupada 5-fold, semente 42) mostram *onde* ele
 # erra. Esta seção é só diagnóstica: não altera a escolha nem os hiperparâmetros. O limiar abaixo é
-# escolhido no OOF inteiro, que é o que `ThresholdClassifier` fará no treino completo do
-# notebook 04.
+# escolhido no OOF inteiro (todas as linhas), que é o que `ThresholdClassifier` fará no treino
+# completo do notebook 04. Os erros são separados em dois grupos: os que caem nas linhas com rótulo
+# contraditório (inevitáveis: a mesma linha tem os dois rótulos e recebe uma só previsão) e os
+# demais, que são os erros de fato do modelo.
 
 # %%
 final_pipe = {n: p for n, p, _ in candidates}[chosen]
 print("Modelo analisado:", chosen)
 oof, oof_fold = cross_val_proba(final_pipe, X, y, groups, n_jobs=FOLD_JOBS)
-mask = evaluation_mask(groups, y)
 is_pos = y.to_numpy() == config.POSITIVE
-thr = best_threshold(oof[mask], is_pos[mask])
+conflict = conflict_mask(groups, y)
+mask = evaluation_mask(groups, y)  # linhas únicas e sem conflito: só contraste
+thr = best_threshold(oof, is_pos)
 pred = np.where(oof >= thr, config.POSITIVE, "normal")
 print(f"Limiar escolhido no OOF: {thr:.2f}")
-validation_report(y[mask], pred[mask], title="OOF, linhas avaliadas", save_as="mod_confusao_oof.png")
+validation_report(y, pred, title="OOF, todas as linhas", save_as="mod_confusao_oof.png")
 plt.show()
-print(f"F1-macro em todas as linhas (com cópias e conflitos): "
-      f"{binary_metrics(is_pos, pred == config.POSITIVE)['f1_macro']:.4f}")
+wrong = pred != y.to_numpy()
+print(f"Contraste, mesmo limiar, linhas únicas e sem conflito: F1-macro "
+      f"{binary_metrics(is_pos[mask], pred[mask] == config.POSITIVE)['f1_macro']:.4f}")
+print(f"Erros: {wrong.sum()} | em linhas com rótulo contraditório: {(wrong & conflict).sum()} "
+      f"de {conflict.sum()} | no resto: {(wrong & ~conflict).sum()} de {(~conflict).sum()}")
+no_conflict = binary_metrics(is_pos[~conflict], pred[~conflict] == config.POSITIVE)["f1_macro"]
+print(f"F1-macro só nas linhas sem conflito (com as cópias): {no_conflict:.4f}")
 
 # %% [markdown]
 # Curva do F1-macro em função do limiar: mostra quanto a escolha do corte importa e se o máximo é
@@ -614,14 +638,14 @@ print(f"F1-macro em todas as linhas (com cópias e conflitos): "
 
 # %%
 grid = np.linspace(0.01, 0.99, 99)
-curve = macro_f1_curve(oof[mask], is_pos[mask], grid)
+curve = macro_f1_curve(oof, is_pos, grid)
 fig, ax = plt.subplots(figsize=(7, 3.6))
 ax.plot(grid, curve, color="#2a78d6")
 ax.axvline(thr, color="#eb6834", ls="--", label=f"limiar escolhido = {thr:.2f}")
 ax.axvline(0.5, color="#8c8c8c", ls=":", label="0,5")
-ax.set_ylim(max(0.9, curve.min()), 1.0)
+ax.set_ylim(max(curve.max() - 0.1, curve.min()), curve.max() + 0.01)
 ax.set_xlabel("limiar de P(anomaly)")
-ax.set_ylabel("F1-macro (OOF)")
+ax.set_ylabel("F1-macro (OOF, todas as linhas)")
 ax.set_title("F1-macro por limiar de decisão")
 ax.legend()
 fig.tight_layout()
@@ -632,15 +656,16 @@ print(f"F1 no limiar escolhido: {curve[np.argmin(abs(grid - thr))]:.4f} | em 0,5
       f"{grid[curve >= curve.max() - 0.002].min():.2f}–{grid[curve >= curve.max() - 0.002].max():.2f}")
 
 # %% [markdown]
-# Onde estão os erros? Falsos negativos (ataques que passam como normais) e falsos positivos, por
-# `service` e `flag`, comparados com a distribuição das linhas avaliadas:
+# Onde estão os erros do modelo? Fora das linhas com rótulo contraditório, falsos negativos
+# (ataques que passam como normais) e falsos positivos, por `service` e `flag`, comparados com a
+# distribuição dessas linhas:
 
 # %%
-ev = X[mask].assign(classe=y[mask].to_numpy(), prevista=pred[mask], p=oof[mask])
+ev = X[~conflict].assign(classe=y[~conflict].to_numpy(), prevista=pred[~conflict], p=oof[~conflict])
 fn = ev[(ev.classe == config.POSITIVE) & (ev.prevista != config.POSITIVE)]
 fp = ev[(ev.classe != config.POSITIVE) & (ev.prevista == config.POSITIVE)]
-print(f"Falsos negativos: {len(fn)} de {is_pos[mask].sum()} ataques | "
-      f"falsos positivos: {len(fp)} de {(~is_pos[mask]).sum()} normais")
+print(f"Falsos negativos: {len(fn)} de {is_pos[~conflict].sum()} ataques | "
+      f"falsos positivos: {len(fp)} de {(~is_pos[~conflict]).sum()} normais")
 for col in ["service", "flag"]:
     t = pd.DataFrame({"FN": fn[col].value_counts(), "FP": fp[col].value_counts(),
                       "% dos ataques": (100 * ev[ev.classe == config.POSITIVE][col]
@@ -667,21 +692,25 @@ plt.show()
 
 # %% [markdown]
 # **O que se conclui.**
-# - **Erros:** o modelo deixa passar cerca de 4% dos ataques (74 falsos negativos em 1.817) e alarma
-#   0,08% das conexões normais (42 falsos positivos em 53.247). O F1 de `normal` (0,999) é quase
-#   perfeito; o F1-macro depende do F1 de `anomaly` (0,968).
-# - **Onde:** 55 dos 74 falsos negativos têm `flag=SF` (conexão concluída normalmente), a flag de
+# - **Quase todo erro está nos conflitos.** No OOF (limiar 0,03, F1-macro 0,8828), o modelo erra
+#   1.851 linhas, e 1.706 delas estão entre as 3.730 linhas com rótulo contraditório. Fora delas,
+#   erra 145 de 66.103 (F1-macro 0,983). O teto teórico, com acerto perfeito fora dos conflitos e o
+#   melhor rótulo possível em cada conflito, é 0,905: o modelo fica 0,02 abaixo dele.
+# - **Erros do modelo (fora dos conflitos):** deixa passar 3,7% dos ataques (81 falsos negativos em
+#   2.183) e alarma 0,1% das conexões normais (64 falsos positivos em 63.920).
+# - **Onde:** 60 dos 81 falsos negativos têm `flag=SF` (conexão concluída normalmente), a flag de
 #   95% do tráfego normal e de só 21% dos ataques. São ataques que imitam uma conexão comum: `private`
-#   (17), `ftp_data` (11), `telnet` (6), `http` (6). O perfil (serviços de login e
-#   transferência) sugere ataques de acesso remoto, cujo sinal está nos atributos de conteúdo
-#   (`hot`, `num_failed_logins`), e não nas janelas de tráfego. `private` concentra também os falsos
-#   positivos (19), o que mostra a sobreposição entre classes nesse serviço.
-# - **Limiar:** a curva tem um platô largo: o F1-macro fica a menos de 0,002 do máximo entre 0,07 e
-#   0,52. A escolha exata do limiar (0,17 no OOF inteiro, 0,27 em média nos folds) pesa pouco. O que
-#   importa é sair de 0,5 na direção da classe minoritária.
-# - O histograma mostra que a maioria das linhas tem probabilidade perto de 0 ou de 1. Os erros
-#   vivem numa faixa estreita de exemplos ambíguos, e é por isso que mais modelos no ensemble não
-#   resolvem: os erros não são aleatórios, são exemplos que os atributos não separam.
+#   (21), `ftp_data` (11), `telnet` (7), `http` (7). O perfil (serviços de login e transferência)
+#   sugere ataques de acesso remoto, cujo sinal está nos atributos de conteúdo (`hot`,
+#   `num_failed_logins`), e não nas janelas de tráfego. `private` concentra também os falsos
+#   positivos (31), o que mostra a sobreposição entre classes nesse serviço.
+# - **Limiar:** a curva tem um platô largo: o F1-macro fica a menos de 0,002 do máximo entre 0,01 e
+#   0,39. O limiar baixo (0,03 no OOF inteiro, 0,04 em média nos folds) vem dos conflitos: nos 1.376
+#   grupos empatados, prever `anomaly` rende mais F1-macro que prever `normal`, porque cada acerto na
+#   classe rara pesa mais. A escolha exata pesa pouco: em 0,5, o F1-macro cai só para 0,8803.
+# - O histograma mostra que a maioria das linhas tem probabilidade perto de 0 ou de 1. Os erros fora
+#   dos conflitos vivem numa faixa estreita de exemplos ambíguos, e é por isso que mais modelos no
+#   ensemble não resolvem: os erros não são aleatórios, são exemplos que os atributos não separam.
 #
 # ## 8. Escolha e congelamento do modelo final
 #
@@ -696,14 +725,12 @@ print(f"Escolhido (mais simples entre os empatados): {chosen} = "
       f"{winner['f1_macro_mean']:.4f} ± {winner['f1_macro_std']:.4f}")
 
 # %% [markdown]
-# **Decisão: HGB da busca ampliada** (`HGB busca 2`). A maior média é a do voto
-# HGB + LightGBM + CatBoost (0,9832), mas a diferença para o HGB (0,0002) é dez vezes menor que o
-# desvio entre folds. Pelo critério declarado antes dos resultados, o empate vai para o mais
-# simples: um modelo único, da disciplina, sem passos extras. Ele treina em cerca de 1/8 do tempo do
-# voto triplo e pode ser explicado diretamente na Etapa 4. Entre os modelos únicos, ele empata em
-# média com o LightGBM e tem desvio menor. Para o relatório, a leitura honesta é: *todos os
-# candidatos de boosting ficam perto de 0,983 e são equivalentes dentro do ruído; escolhemos o mais
-# simples.*
+# **Decisão: HGB da busca ampliada** (`HGB busca 2`). A maior média é a do voto HGB + XGB + RF
+# (0,8826), mas a diferença para o HGB (0,0007) é quatro vezes menor que o desvio entre folds. Pelo
+# critério declarado antes dos resultados, o empate vai para o mais simples: um modelo único, da
+# disciplina, sem passos extras. Ele treina em cerca de 1/9 do tempo do voto e pode ser explicado
+# diretamente na Etapa 4. Para o relatório, a leitura honesta é: *todos os candidatos de boosting
+# ficam perto de 0,882 e são equivalentes dentro do ruído; escolhemos o mais simples.*
 #
 # Se a equipe preferir arriscar o voto triplo para tentar ganhar alguns décimos de milésimo no
 # ranking, a troca precisa ser feita **agora**, antes do notebook 04, e justificada como desvio do
@@ -721,11 +748,13 @@ final_config = {
     "model_params": hgb2[False],
     "pipeline_params": {k: v for k, v in cat["HGB_native"].items() if k != "balancing"},
     "threshold": "ThresholdClassifier: limiar de maior F1-macro nas previsões OOF "
-                 "(StratifiedGroupKFold 5, agrupado por duplicata) do próprio treino",
+                 "(StratifiedGroupKFold 5, agrupado por duplicata, todas as linhas) do próprio treino",
     "cv_f1_macro": float(winner["f1_macro_mean"]),
     "cv_f1_macro_std": float(winner["f1_macro_std"]),
     "cv_protocolo": "StratifiedGroupKFold 5 folds x 3 repetições (sementes 42-44), agrupado por "
-                    "duplicata; avaliado em linhas únicas sem rótulo contraditório",
+                    "duplicata; F1-macro em todas as linhas do fold (como a métrica oficial), "
+                    "limiar aprendido nos outros folds",
+    "cv_f1_macro_sem_conflitos": float(winner["f1_macro_clean_mean"]),
     "cv_threshold_medio": float(winner["threshold_mean"]),
     "criterio": "maior F1-macro em CV agrupada 3x5; empate (< 1 dp) pelo mais simples",
     "random_state": config.RANDOM_STATE,
@@ -755,18 +784,20 @@ rebuilt
 #
 # | Pergunta | Resposta |
 # |---|---|
-# | Melhor família | boosting de árvores (HGB e LightGBM empatados), seguido de RF e XGB |
-# | Modelo final | HGB com categorias e NaN nativos, `majority_label`, limiar por OOF |
-# | F1-macro esperado (CV 3×5) | 0,9830 ± 0,0023 (linhas únicas e sem conflito) |
+# | Melhor família | boosting de árvores (HGB e LightGBM empatados), com RF e os votos no empate |
+# | Modelo final | HGB com categorias e NaN nativos, `drop_inconsistent`, limiar por OOF |
+# | F1-macro esperado (CV 3×5, todas as linhas) | **0,8819 ± 0,0030** |
+# | Contraste sem conflitos | 0,9817 (mesmo modelo, linhas únicas e sem rótulo contraditório) |
+# | Teto teórico da métrica | 0,905 (acerto perfeito fora dos conflitos, melhor rótulo em cada conflito) |
 # | O que mais rendeu | limpeza de rótulos no boosting (Etapa 2) e limiar de decisão |
-# | O que não rendeu | balanceamento, PCA, ensembles, atributos derivados, CatBoost e boa parte do tuning |
-# | Teto aparente | cerca de 0,983 com os 41 atributos; os erros restantes são ataques com `flag=SF` que imitam tráfego normal |
+# | O que não rendeu | balanceamento, redução, ensembles, atributos derivados, CatBoost e o tuning |
+# | Erros restantes | 92% caem nas linhas com rótulo contraditório; o resto são ataques com `flag=SF` que imitam tráfego normal |
 #
-# **Expectativa para o teste.** A professora calcula o F1-macro em *todas* as linhas do teste. Se o
-# teste tiver cópias e rótulos contraditórios na mesma proporção do treino, o número oficial deve
-# ficar abaixo da CV limpa e mais perto do F1-macro bruto (0,88), porque nenhum modelo acerta os dois
-# rótulos de uma mesma linha. Isso vale igualmente para todas as equipes e não muda a ordem dos
-# modelos.
+# **Expectativa para o teste.** A professora calcula o F1-macro em *todas* as linhas do teste, como
+# a nossa validação. Se o teste tiver cópias e rótulos contraditórios na mesma proporção do treino,
+# o número oficial deve ficar perto de 0,88. Se tiver menos conflitos, pode ficar acima, até perto
+# do valor sem conflitos (0,98). O ruído vale igualmente para todas as equipes e não muda a ordem
+# dos modelos.
 #
 # **Próximo passo (Etapa 4).** O notebook 04 lê `results/final_config.json`, ajusta o
 # `ThresholdClassifier(pipeline)` no treino inteiro, carrega o teste uma única vez

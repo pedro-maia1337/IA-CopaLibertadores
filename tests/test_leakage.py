@@ -117,11 +117,29 @@ def test_threshold_classifier_uses_learned_cut(sample):
     assert set(model.predict(X.iloc[:50])) <= set(config.CLASSES)
 
 
-def test_cv_reports_clean_and_noisy_metrics(sample):
+def test_cv_scores_all_rows_and_reports_clean_contrast(sample):
+    """A métrica principal usa todas as linhas (oficial); sem conflitos é só contraste."""
     X, y, groups = sample
     pipe = build_pipeline(tree(), redundancy="drop_inconsistent")
     out = cross_validate_pipeline(pipe, X, y, groups, n_splits=3, n_jobs=1)
-    assert out["f1_macro_mean"] > out["f1_macro_noisy_mean"]
+    assert out["f1_macro_clean_mean"] > out["f1_macro_mean"]
+    assert "f1_macro_noisy_mean" not in out
+
+
+def test_cv_metric_matches_all_rows_f1(sample):
+    """Com 1 fold de pontuação por linha, o F1 da CV bate com o f1_score em todas as linhas."""
+    from sklearn.metrics import f1_score
+    from nslkdd.decision import cross_val_proba
+    from nslkdd.evaluation import _score_folds
+    X, y, groups = sample
+    pipe = build_pipeline(tree(), redundancy="drop_inconsistent")
+    proba, fold = cross_val_proba(pipe, X, y, groups, 3, n_jobs=1)
+    is_pos = y.to_numpy() == config.POSITIVE
+    rows = _score_folds(proba, fold, is_pos, np.ones(len(y), bool))
+    for k, row in zip(np.unique(fold), rows):
+        own = fold == k
+        pred = proba[own] >= row["threshold"]
+        assert np.isclose(row["f1_macro"], f1_score(is_pos[own], pred, average="macro"))
 
 
 def test_log_cache_depends_on_hyperparameters(sample, tmp_path):

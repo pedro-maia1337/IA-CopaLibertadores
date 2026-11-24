@@ -37,17 +37,22 @@ def binary_metrics(is_positive, predicted_positive):
 
 
 def _score_folds(proba, fold, y, mask):
-    """Cada fold usa um limiar aprendido nos demais: o limiar nunca vê o fold que pontua."""
+    """Cada fold usa um limiar aprendido nos demais: o limiar nunca vê o fold que pontua.
+
+    A métrica principal usa todas as linhas do fold, como o F1-macro oficial (calculado pela
+    professora em todas as linhas do teste). `mask` (evaluation_mask) só dá o contraste
+    f1_macro_clean: o mesmo limiar, pontuado nas linhas únicas e sem rótulo contraditório.
+    """
     rows = []
     for k in np.unique(fold):
         own = fold == k
-        rest = mask & ~own
+        rest = ~own
         threshold = best_threshold(proba[rest], y[rest])
-        score = mask & own
-        row = binary_metrics(y[score], proba[score] >= threshold)
+        row = binary_metrics(y[own], proba[own] >= threshold)
         row["threshold"] = threshold
-        row["f1_macro_05"] = binary_metrics(y[score], proba[score] >= 0.5)["f1_macro"]
-        row["f1_macro_noisy"] = binary_metrics(y[own], proba[own] >= threshold)["f1_macro"]
+        row["f1_macro_05"] = binary_metrics(y[own], proba[own] >= 0.5)["f1_macro"]
+        score = mask & own
+        row["f1_macro_clean"] = binary_metrics(y[score], proba[score] >= threshold)["f1_macro"]
         rows.append(row)
     return rows
 
@@ -55,8 +60,11 @@ def _score_folds(proba, fold, y, mask):
 def cross_validate_pipeline(pipe, X, y, groups, n_splits=5, n_repeats=1, n_jobs=-1):
     """CV por grupo de duplicatas, com limiar cruzado.
 
-    Métrica principal (f1_macro): linhas únicas e sem rótulo contraditório. f1_macro_noisy
-    inclui cópias e conflitos e serve de contraste; o teto dela é baixo por construção.
+    Métrica principal (f1_macro): todas as linhas do fold de validação, cópias e conflitos
+    incluídos, como a métrica oficial. Os 1.702 grupos de linhas idênticas com rótulos opostos
+    limitam essa métrica a 0,905 mesmo para um classificador perfeito (os modelos ficam perto de
+    0,88). f1_macro_clean (linhas únicas e sem
+    conflito) é só contraste: mostra quanto do erro vem desse ruído e não decide nada.
     """
     t0 = time.time()
     is_positive = y.to_numpy() == config.POSITIVE
@@ -71,7 +79,13 @@ def cross_validate_pipeline(pipe, X, y, groups, n_splits=5, n_repeats=1, n_jobs=
     for name in table.columns:
         out[f"{name}_mean"] = round(float(table[name].mean()), 4)
     out["f1_macro_std"] = round(float(table["f1_macro"].std(ddof=0)), 4)
+    out["f1_macro_clean_std"] = round(float(table["f1_macro_clean"].std(ddof=0)), 4)
     return out
+
+
+# Muda quando a definição da métrica muda, para o cache não devolver números calculados
+# com a definição antiga ("mascara": linhas únicas sem conflito; "todas_linhas": oficial).
+METRIC_VERSION = "todas_linhas"
 
 
 def _data_version():
@@ -142,13 +156,13 @@ class ExperimentLog:
 
     def key(self, stage, model_name, params, model, n_splits, n_repeats):
         blob = json.dumps([stage, model_name, params, model.get_params(), n_splits, n_repeats,
-                           self.data_version], sort_keys=True, default=str)
+                           self.data_version, METRIC_VERSION], sort_keys=True, default=str)
         blob = re.sub(r"0x[0-9a-fA-F]+", "", blob)  # endereços de memória mudam a cada execução
         return hashlib.md5(blob.encode()).hexdigest()[:12]
 
     def stable_key(self, stage, model_name, params, model, n_splits, n_repeats):
         blob = json.dumps([stage, model_name, params, changed_params(model), n_splits, n_repeats,
-                           self.data_version], sort_keys=True, default=str)
+                           self.data_version, METRIC_VERSION], sort_keys=True, default=str)
         return hashlib.md5(_no_address(blob).encode()).hexdigest()[:12]
 
     def lookup(self, stage, model_name, model, params=None, n_splits=5, n_repeats=1,
@@ -214,7 +228,7 @@ class ExperimentLog:
         if stage is not None:
             t = t[t["stage"] == stage]
         cols = cols or [c for c in t.columns if c.startswith("p_")] + [
-            "model", "f1_macro_mean", "f1_macro_std", "f1_macro_05_mean", "f1_macro_noisy_mean",
+            "model", "f1_macro_mean", "f1_macro_std", "f1_macro_05_mean", "f1_macro_clean_mean",
             "f1_normal_mean", "f1_anomaly_mean", "precision_normal_mean", "recall_normal_mean",
             "precision_anomaly_mean", "recall_anomaly_mean",
             "balanced_accuracy_mean", "threshold_mean", "cv_seconds"]
@@ -222,7 +236,10 @@ class ExperimentLog:
 
 
 def validation_report(y_true, y_pred, title="OOF no treino", save_as=None):
-    """F1-macro, relatório por classe e matriz de confusão. O teste não tem rótulos aqui."""
+    """F1-macro, relatório por classe e matriz de confusão. O teste não tem rótulos aqui.
+
+    Passe todas as linhas do treino: é o que a métrica oficial pontua no teste.
+    """
     is_positive = np.asarray(y_true) == config.POSITIVE
     metrics = binary_metrics(is_positive, np.asarray(y_pred) == config.POSITIVE)
     labels = config.CLASSES

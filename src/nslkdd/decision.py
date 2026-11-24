@@ -9,7 +9,7 @@ from sklearn.base import BaseEstimator, ClassifierMixin, clone
 from sklearn.model_selection import StratifiedGroupKFold
 
 from . import config
-from .data import duplicate_groups, evaluation_mask
+from .data import duplicate_groups
 
 GRID = np.linspace(0.01, 0.99, 99)
 
@@ -65,8 +65,8 @@ class ThresholdClassifier(BaseEstimator, ClassifierMixin):
         X = X.reset_index(drop=True)
         groups = duplicate_groups(X)
         oof, _ = cross_val_proba(self.estimator, X, y, groups, self.n_splits, n_jobs=self.n_jobs)
-        mask = evaluation_mask(groups, y)
-        self.threshold_ = best_threshold(oof[mask], y.to_numpy()[mask] == config.POSITIVE)
+        # Todas as linhas, como a métrica oficial: o limiar maximiza o F1-macro que será medido.
+        self.threshold_ = best_threshold(oof, y.to_numpy() == config.POSITIVE)
         self.estimator_ = clone(self.estimator).fit(X, y)
         self.classes_ = self.estimator_.classes_
         return self

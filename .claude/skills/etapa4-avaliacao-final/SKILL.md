@@ -12,7 +12,7 @@ Entregáveis: `notebooks/04_avaliacao_final.ipynb` (completo e reproduzível do 
 ## Protocolo (nesta ordem)
 1. Ler `final_config.json`; montar o pipeline com `build_pipeline(model, **pipeline_params)` e envolver em `ThresholdClassifier` (aprende o limiar via OOF agrupado no treino).
 2. Treinar no **`treino.csv` completo**. Salvar com `joblib.dump(..., config.MODELS / "final.joblib")`.
-3. Estimativa honesta: `cross_val_proba` + limiar + `validation_report` nas linhas de `evaluation_mask`. Reporte precisão, recall e F1 **das duas classes** (é o que a professora divulga) e o F1-macro. Mostrar também `f1_macro_noisy`, explicando por que ele não estima o teste (conflitos existem só por construção no treino).
+3. Estimativa honesta: `cross_val_proba` + limiar + `validation_report` em **todas as linhas** do treino (como a métrica oficial). Reporte precisão, recall e F1 **das duas classes** (é o que a professora divulga) e o F1-macro. Mostrar também o F1 nas linhas de `evaluation_mask` (sem conflitos) só como contraste, explicando que ele não estima o teste (conflitos existem só por construção no treino).
 4. Só então `X_te, ids = load_test(final_evaluation=True)`, uma vez, sem filtrar nem reordenar linhas.
 5. `y_pred = model.predict(X_te)`; `write_submission(ids, y_pred)` valida colunas, ids, ordem, rótulos em minúsculas e vazios e grava `results/submissao_<N>.csv` (fim de linha `
 `, bytes determinísticos).
@@ -36,7 +36,7 @@ rules, fid = surrogate_rules(model, X_tr, max_depth=4)   # regras legíveis + fi
 - Use amostras do treino para SHAP/permutação. Não há rótulos no teste, e explicar o modelo não exige o teste.
 
 ## Discussão dos resultados (vai para o relatório e a apresentação)
-- Por que o F1 bruto parou em ~0,88 e o F1 sobre linhas limpas é a medida correta.
+- Por que o F1-macro (oficial, todas as linhas) fica perto de 0,88 (teto teórico 0,905): aritmética dos 1.702 grupos de linhas idênticas com rótulos opostos, não falha do modelo nem vazamento. O F1 sem conflitos (~0,98) é só contraste.
 - Custo de abrir mão das colunas de vazamento (quantificado na EDA), e por que isso é o correto: um detector que depende da triagem do SOC detecta o que já foi detectado.
 - Quais escolhas de pré-processamento mais contribuíram (puxar da tabela da Etapa 2/3).
 - Limitações: o rótulo verdadeiro dos conflitos é desconhecido, o ruído pode existir também onde não há cópia para denunciá-lo, SMOTE em dummies, ~40% de ausentes em `src_bytes`.

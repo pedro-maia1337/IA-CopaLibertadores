@@ -111,14 +111,14 @@ Valem também os cuidados da Etapa 1. Não copie apenas a pasta \texttt{nslkdd/}
 Nesta etapa, comparamos de forma explícita todas as técnicas de pré-processamento pedidas na Seção 4 do enunciado: tratamento de dados redundantes e inconsistentes, balanceamento de classes, codificação de \texttt{service}, normalização e redução de dimensionalidade. Somamos a elas os dois problemas que a Etapa 1 encontrou na base: valores impossíveis e valores ausentes. Cada técnica foi avaliada por validação cruzada agrupada com 5 folds, só no treino, usando o F1-macro. Uma alternativa só substitui a opção mais simples quando o ganho passa de 1 desvio-padrão.
 
 \begin{itemize}
-\item \textbf{Redundância e inconsistência.} Só o boosting ganha com a limpeza de rótulos: no HGB, a estratégia \texttt{majority\_label} sobe o F1-macro de 0,9754 para 0,9820. No Random Forest (bagging) e no MLP, nenhuma estratégia muda o resultado além do ruído. Reclassificar os conflitos com um modelo (\texttt{relabel\_model}) não superou a simples remoção.
+\item \textbf{Redundância e inconsistência.} Só o boosting ganha com a limpeza de rótulos: no HGB, remover os grupos com rótulo contraditório do treino (\texttt{drop\_inconsistent}) sobe o F1-macro de 0,8777 para 0,8821. No Random Forest (bagging) e no MLP, nenhuma estratégia muda o resultado além do ruído. Reclassificar os conflitos com um modelo (\texttt{relabel\_model}) não superou a simples remoção.
 \item \textbf{Valores impossíveis.} Tratá-los como ausentes (\texttt{nan}) foi ao menos tão bom quanto saturar no limite ou mantê-los, nas duas famílias testadas.
 \item \textbf{Ausentes.} Ficamos com o NaN nativo no HGB e a mediana no RF e no MLP. O indicador de ausência não ajudou, apesar de \texttt{dst\_host\_serror\_rate} ser MNAR.
 \item \textbf{Codificação de \texttt{service}.} O one-hot vence ou empata com frequência, \emph{target encoding}, ordinal e one-hot com as categorias raras agrupadas. Nenhuma alternativa passou da regra.
 \item \textbf{Balanceamento.} Nenhuma das 7 técnicas testadas supera não balancear. O undersampling (RUS) e o \texttt{class\_weight} pioram. Como o limiar de decisão é ajustado com previsões \emph{out-of-fold}, o desbalanceamento de 16 para 1 já é tratado na decisão.
-\item \textbf{Transformação numérica.} No MLP, \texttt{log1p} seguido de padronização é a melhor opção (0,9641). Sem o \texttt{log1p}, o resultado cai para 0,9551.
-\item \textbf{Redução.} A seleção por árvores (\texttt{tree\_select}) é a única que não perde (RF: 0,9813) e mantém os atributos originais. O PCA perde nas duas famílias, mesmo com os dados padronizados.
-\item \textbf{Robustez.} Repetindo a validação cruzada 3 vezes (15 folds), o ganho da limpeza de rótulos no HGB se confirma (0,9741 $\rightarrow$ 0,9824). O ganho do \texttt{tree\_select} no RF não se confirma (+0,0008). Mantivemos a técnica por ter desempenho equivalente com metade das colunas e com os atributos originais, e não por ser melhor.
+\item \textbf{Transformação numérica.} No MLP, \texttt{log1p} seguido de padronização é a melhor opção (0,8711). Sem o \texttt{log1p}, o resultado cai para 0,8654.
+\item \textbf{Redução.} Nenhuma técnica passou da regra. A seleção por árvores (\texttt{tree\_select}) é a única que não perde (RF: 0,8819 contra 0,8808), mas o ganho fica abaixo de 1 desvio-padrão. O PCA perde nas duas famílias, mesmo com os dados padronizados.
+\item \textbf{Robustez.} Repetindo a validação cruzada 3 vezes (15 folds), o ganho da limpeza de rótulos no HGB se confirma (0,8777 $\rightarrow$ 0,8815). No RF, o \texttt{tree\_select} continua empatado com não reduzir (+0,0003).
 \end{itemize}
 
 \setcounter{section}{-1}
@@ -150,7 +150,7 @@ Antes de olhar os resultados, fixamos como as técnicas seriam comparadas.
 
 \textbf{Validação.} Usamos \texttt{StratifiedGroupKFold} com 5 folds, agrupado por duplicata. Assim, as 13.067 cópias encontradas na Etapa 1 nunca ficam uma no treino e outra na validação, o que inflaria a nota.
 
-\textbf{Métrica.} Usamos o F1-macro, que é a métrica oficial da competição. Cada fold é pontuado só nas linhas que realmente medem generalização: uma por grupo de cópias, sem rótulo contraditório. Nos 1.702 grupos em que a mesma linha aparece com as duas classes, nenhum modelo acerta mais que metade, e esse ruído esconderia as diferenças entre as técnicas. O F1-macro calculado sobre todas as linhas aparece nas tabelas como \texttt{f1\_macro\_bruto}, apenas como contraste. Ele não decide nada, porque fica preso perto de 0,88 por causa dos conflitos.
+\textbf{Métrica.} Usamos o F1-macro, que é a métrica oficial da competição, calculado em \textbf{todas as linhas} de cada fold de validação, com cópias e conflitos, como a professora o calcula no teste. Nos 1.702 grupos em que a mesma linha aparece com as duas classes (3.730 linhas), o modelo dá uma única resposta, e parte das cópias sempre erra. Por isso, mesmo um classificador perfeito fora dos conflitos, que escolhesse o melhor rótulo em cada conflito, ficaria em 0,905, e os modelos reais ficam perto de 0,88. Isso não é falha dos modelos nem vazamento: é aritmética do ruído de rótulo. Como contraste, as tabelas trazem a coluna \emph{sem conflitos}: o mesmo modelo, com o mesmo limiar, pontuado só nas linhas únicas e sem rótulo contraditório. Ela mostra quanto do erro vem do ruído, mas não decide nada e não estima a nota. (Numa versão anterior deste relatório, a métrica principal era justamente essa coluna, perto de 0,98; corrigimos para a métrica oficial.)
 
 \textbf{Limiar de decisão.} O F1-macro depende do ponto de corte aplicado à probabilidade prevista. Em cada fold, o limiar é escolhido nas previsões \emph{out-of-fold} dos \emph{outros} folds, de modo que o fold pontuado nunca ajuda a escolher o próprio limiar.
 
@@ -252,23 +252,23 @@ A maioria dos grupos em conflito (1.376 de 1.702) está empatada, ou seja, tem t
 \begin{adjustbox}{max width=\linewidth}
 \begin{tabular}{llrrrrrrrc}
 \toprule
-Família & Opção & F1-macro & dp & ganho & F1 bruto & precisão anom. & recall anom. & limiar & escolhida \\
+Família & Opção & F1-macro & dp & ganho & sem conflitos & precisão anom. & recall anom. & limiar & escolhida \\
 \midrule
-HGB & none & 0.9754 & 0.0036 & 0.0000 & 0.8776 & 0.9641 & 0.9410 & 0.310 & \\
-HGB & drop\_duplicates & 0.9750 & 0.0031 & $-$0.0004 & 0.8767 & 0.9750 & 0.9294 & 0.356 & \\
-HGB & drop\_inconsistent & 0.9808 & 0.0008 & 0.0054 & 0.8806 & 0.9786 & 0.9476 & 0.330 & \\
-HGB & majority\_label & 0.9820 & 0.0015 & 0.0066 & 0.8816 & 0.9778 & 0.9531 & 0.284 & \checkmark \\
-HGB & relabel\_model & 0.9795 & 0.0020 & 0.0041 & 0.8799 & 0.9766 & 0.9448 & 0.292 & \\
+HGB & none & 0.8777 & 0.0025 & 0.0000 & 0.9748 & 0.7521 & 0.7889 & 0.286 &  \\
+HGB & drop\_duplicates & 0.8779 & 0.0020 & 0.0002 & 0.9718 & 0.7430 & 0.8004 & 0.214 &  \\
+HGB & drop\_inconsistent & 0.8821 & 0.0009 & 0.0044 & 0.9815 & 0.7565 & 0.8017 & 0.110 & \checkmark \\
+HGB & majority\_label & 0.8815 & 0.0005 & 0.0038 & 0.9813 & 0.7577 & 0.7977 & 0.212 &  \\
+HGB & relabel\_model & 0.8814 & 0.0012 & 0.0037 & 0.9797 & 0.7535 & 0.8024 & 0.088 &  \\
 \midrule
-RF & none & 0.9791 & 0.0021 & 0.0000 & 0.8800 & 0.9703 & 0.9492 & 0.360 & \checkmark \\
-RF & drop\_duplicates & 0.9790 & 0.0028 & $-$0.0001 & 0.8804 & 0.9677 & 0.9515 & 0.334 & \\
-RF & drop\_inconsistent & 0.9776 & 0.0021 & $-$0.0015 & 0.8789 & 0.9688 & 0.9453 & 0.344 & \\
-RF & majority\_label & 0.9783 & 0.0036 & $-$0.0008 & 0.8798 & 0.9655 & 0.9510 & 0.346 & \\
-RF & relabel\_model & 0.9791 & 0.0020 & 0.0000 & 0.8799 & 0.9747 & 0.9454 & 0.370 & \\
+RF & none & 0.8808 & 0.0018 & 0.0000 & 0.9786 & 0.7534 & 0.8002 & 0.308 & \checkmark \\
+RF & drop\_duplicates & 0.8816 & 0.0018 & 0.0008 & 0.9797 & 0.7549 & 0.8014 & 0.306 &  \\
+RF & drop\_inconsistent & 0.8799 & 0.0024 & $-$0.0009 & 0.9784 & 0.7557 & 0.7938 & 0.308 &  \\
+RF & majority\_label & 0.8812 & 0.0022 & 0.0004 & 0.9797 & 0.7551 & 0.7995 & 0.314 &  \\
+RF & relabel\_model & 0.8802 & 0.0016 & $-$0.0006 & 0.9783 & 0.7552 & 0.7953 & 0.320 &  \\
 \midrule
-MLP & none & 0.9641 & 0.0038 & 0.0000 & 0.8696 & 0.9534 & 0.9102 & 0.428 & \checkmark \\
-MLP & drop\_duplicates & 0.9547 & 0.0093 & $-$0.0094 & 0.8647 & 0.9337 & 0.8948 & 0.418 & \\
-MLP & drop\_inconsistent & 0.9657 & 0.0037 & 0.0016 & 0.8704 & 0.9579 & 0.9113 & 0.480 & \\
+MLP & none & 0.8711 & 0.0044 & 0.0000 & 0.9643 & 0.7456 & 0.7705 & 0.344 & \checkmark \\
+MLP & drop\_duplicates & 0.8666 & 0.0054 & $-$0.0045 & 0.9542 & 0.7300 & 0.7700 & 0.292 &  \\
+MLP & drop\_inconsistent & 0.8696 & 0.0030 & $-$0.0015 & 0.9624 & 0.7446 & 0.7656 & 0.398 &  \\
 \bottomrule
 \end{tabular}
 \end{adjustbox}
@@ -280,11 +280,11 @@ MLP & drop\_inconsistent & 0.9657 & 0.0037 & 0.0016 & 0.8704 & 0.9579 & 0.9113 &
 \caption{F1-macro por estratégia de redundância e inconsistência, em cada família.}
 \end{figure}
 
-\textbf{No HGB, a limpeza de rótulos ajuda claramente.} A \texttt{majority\_label} (0,9820 $\pm$ 0,0015) e a \texttt{drop\_inconsistent} (0,9808) superam a referência \texttt{none} (0,9754 $\pm$ 0,0036) por mais de 1 desvio-padrão. Isso tem uma explicação: no boosting, cada árvore é ajustada aos erros das anteriores, então o modelo insiste em acertar os exemplos com rótulo trocado e acaba memorizando o ruído. Removê-los antes do ajuste corrige o problema. Escolhemos a \texttt{majority\_label}, que ainda aproveita a informação dos grupos com três ou mais cópias.
+\textbf{No HGB, a limpeza de rótulos ajuda claramente.} A \texttt{drop\_inconsistent} (0,8821 $\pm$ 0,0009), a \texttt{majority\_label} (0,8815) e a \texttt{relabel\_model} (0,8814) superam a referência \texttt{none} (0,8777 $\pm$ 0,0025) por mais de 1 desvio-padrão. Isso tem uma explicação: no boosting, cada árvore é ajustada aos erros das anteriores, então o modelo insiste em acertar os exemplos com rótulo trocado e acaba memorizando o ruído, o que prejudica também as previsões das linhas vizinhas, sem conflito. Removê-los antes do ajuste corrige o problema. As três limpezas empatam entre si; pela regra, fica a primeira que passa de 1 desvio-padrão e não é superada, a \texttt{drop\_inconsistent}. Note que a limpeza vale mesmo pontuando todas as linhas: os conflitos saem só do \emph{treino} de cada fold, e a validação continua com todos eles.
 
-\textbf{No RF, nenhuma estratégia passa da regra}: todas ficam entre 0,9776 e 0,9791, e por isso mantivemos \texttt{none}. O bagging já é robusto a ruído de rótulo, porque cada árvore vê uma amostra diferente dos dados e o voto final dilui os exemplos trocados.
+\textbf{No RF, nenhuma estratégia passa da regra}: todas ficam entre 0,8799 e 0,8816, e por isso mantivemos \texttt{none}. O bagging já é robusto a ruído de rótulo, porque cada árvore vê uma amostra diferente dos dados e o voto final dilui os exemplos trocados.
 
-\textbf{No MLP, também fica \texttt{none}.} A \texttt{drop\_inconsistent} (0,9657) não supera a referência (0,9641 $\pm$ 0,0038) por 1 desvio-padrão, e a \texttt{drop\_duplicates} piora.
+\textbf{No MLP, também fica \texttt{none}.} Nenhuma limpeza supera a referência (0,8711 $\pm$ 0,0044), e a \texttt{drop\_duplicates} piora.
 
 A \textbf{\texttt{relabel\_model} não compensou} em nenhuma família. Recuperar parte dos conflitos com um modelo não foi melhor do que simplesmente removê-los. É um resultado negativo, mas útil: a informação extra não paga o risco de propagar os erros do próprio modelo.
 
@@ -344,15 +344,15 @@ Os valores impossíveis atingem 8,1\% das linhas, e a taxa de anomalia nelas (5,
 \begin{adjustbox}{max width=\linewidth}
 \begin{tabular}{llrrrrrrrc}
 \toprule
-Família & Opção & F1-macro & dp & ganho & F1 bruto & precisão anom. & recall anom. & limiar & escolhida \\
+Família & Opção & F1-macro & dp & ganho & sem conflitos & precisão anom. & recall anom. & limiar & escolhida \\
 \midrule
-HGB & nan & 0.9820 & 0.0015 & 0.0000 & 0.8816 & 0.9778 & 0.9531 & 0.284 & \checkmark \\
-HGB & none & 0.9804 & 0.0015 & $-$0.0016 & 0.8805 & 0.9773 & 0.9476 & 0.318 & \\
-HGB & clip & 0.9803 & 0.0016 & $-$0.0017 & 0.8804 & 0.9792 & 0.9454 & 0.364 & \\
+HGB & nan & 0.8821 & 0.0009 & 0.0000 & 0.9815 & 0.7565 & 0.8017 & 0.110 & \checkmark \\
+HGB & none & 0.8817 & 0.0008 & $-$0.0004 & 0.9810 & 0.7561 & 0.8007 & 0.114 &  \\
+HGB & clip & 0.8814 & 0.0010 & $-$0.0007 & 0.9816 & 0.7601 & 0.7946 & 0.210 &  \\
 \midrule
-MLP & nan & 0.9641 & 0.0038 & 0.0000 & 0.8696 & 0.9534 & 0.9102 & 0.428 & \checkmark \\
-MLP & none & 0.9589 & 0.0049 & $-$0.0052 & 0.8672 & 0.9371 & 0.9063 & 0.392 & \\
-MLP & clip & 0.9635 & 0.0040 & $-$0.0006 & 0.8700 & 0.9494 & 0.9113 & 0.396 & \\
+MLP & nan & 0.8711 & 0.0044 & 0.0000 & 0.9643 & 0.7456 & 0.7705 & 0.344 & \checkmark \\
+MLP & none & 0.8681 & 0.0025 & $-$0.0030 & 0.9590 & 0.7406 & 0.7642 & 0.346 &  \\
+MLP & clip & 0.8699 & 0.0032 & $-$0.0012 & 0.9617 & 0.7417 & 0.7700 & 0.332 &  \\
 \bottomrule
 \end{tabular}
 \end{adjustbox}
@@ -364,7 +364,7 @@ MLP & clip & 0.9635 & 0.0040 & $-$0.0006 & 0.8700 & 0.9494 & 0.9113 & 0.396 & \\
 \caption{F1-macro por tratamento de valores impossíveis.}
 \end{figure}
 
-A opção \texttt{nan} foi a melhor nas duas famílias testadas (HGB 0,9820; MLP 0,9641). No HGB, \texttt{none} e \texttt{clip} perdem praticamente o mesmo, cerca de 0,0016. No MLP, \texttt{clip} empata, mas manter o valor (\texttt{none}) custa 0,005. Isso acontece porque um valor como 600 numa taxa vira, depois da padronização, um ponto extremo que distorce os pesos da rede.
+A opção \texttt{nan} foi a melhor nas duas famílias testadas (HGB 0,8821; MLP 0,8711). No HGB, \texttt{none} e \texttt{clip} perdem menos de 0,001, dentro do ruído. No MLP, \texttt{clip} empata, mas manter o valor (\texttt{none}) custa 0,003. Isso acontece porque um valor como 600 numa taxa vira, depois da padronização, um ponto extremo que distorce os pesos da rede.
 
 O RF não foi testado neste eixo. O comportamento das árvores já estava coberto pelo HGB, e a regra manteria a referência de qualquer forma. Assim, \texttt{nan} vale para todas as famílias.
 
@@ -421,21 +421,21 @@ srv\_diff\_host\_rate & 6,1 \\
 \begin{adjustbox}{max width=\linewidth}
 \begin{tabular}{llrrrrrrrc}
 \toprule
-Família & Opção & F1-macro & dp & ganho & F1 bruto & precisão anom. & recall anom. & limiar & escolhida \\
+Família & Opção & F1-macro & dp & ganho & sem conflitos & precisão anom. & recall anom. & limiar & escolhida \\
 \midrule
-HGB & none & 0.9820 & 0.0015 & 0.0000 & 0.8816 & 0.9778 & 0.9531 & 0.284 & \checkmark \\
-HGB & median & 0.9811 & 0.0017 & $-$0.0009 & 0.8816 & 0.9696 & 0.9576 & 0.186 & \\
-HGB & median\_indicator & 0.9814 & 0.0012 & $-$0.0006 & 0.8816 & 0.9722 & 0.9559 & 0.244 & \\
+HGB & none & 0.8821 & 0.0009 & 0.0000 & 0.9815 & 0.7565 & 0.8017 & 0.110 & \checkmark \\
+HGB & median & 0.8817 & 0.0005 & $-$0.0004 & 0.9812 & 0.7566 & 0.8000 & 0.172 &  \\
+HGB & median\_indicator & 0.8814 & 0.0013 & $-$0.0007 & 0.9804 & 0.7568 & 0.7985 & 0.174 &  \\
 \midrule
-RF & median & 0.9791 & 0.0021 & 0.0000 & 0.8800 & 0.9703 & 0.9492 & 0.360 & \checkmark \\
-RF & none & 0.9801 & 0.0027 & 0.0010 & 0.8805 & 0.9750 & 0.9487 & 0.340 & \\
-RF & median\_indicator & 0.9780 & 0.0036 & $-$0.0011 & 0.8803 & 0.9622 & 0.9532 & 0.308 & \\
-RF & mean & 0.9783 & 0.0026 & $-$0.0008 & 0.8800 & 0.9679 & 0.9487 & 0.326 & \\
+RF & median & 0.8808 & 0.0018 & 0.0000 & 0.9786 & 0.7534 & 0.8002 & 0.308 & \checkmark \\
+RF & none & 0.8809 & 0.0022 & 0.0001 & 0.9783 & 0.7511 & 0.8031 & 0.284 &  \\
+RF & median\_indicator & 0.8807 & 0.0027 & $-$0.0001 & 0.9784 & 0.7530 & 0.8002 & 0.290 &  \\
+RF & mean & 0.8811 & 0.0020 & 0.0003 & 0.9788 & 0.7526 & 0.8022 & 0.288 &  \\
 \midrule
-MLP & median & 0.9641 & 0.0038 & 0.0000 & 0.8696 & 0.9534 & 0.9102 & 0.428 & \checkmark \\
-MLP & mean & 0.9608 & 0.0047 & $-$0.0033 & 0.8679 & 0.9517 & 0.8997 & 0.420 & \\
-MLP & median\_indicator & 0.9492 & 0.0045 & $-$0.0149 & 0.8606 & 0.9286 & 0.8773 & 0.384 & \\
-MLP & iterative & 0.9639 & 0.0044 & $-$0.0002 & 0.8689 & 0.9608 & 0.9020 & 0.422 & \\
+MLP & median & 0.8711 & 0.0044 & 0.0000 & 0.9643 & 0.7456 & 0.7705 & 0.344 & \checkmark \\
+MLP & mean & 0.8692 & 0.0039 & $-$0.0019 & 0.9589 & 0.7365 & 0.7732 & 0.290 &  \\
+MLP & median\_indicator & 0.8594 & 0.0051 & $-$0.0117 & 0.9455 & 0.7321 & 0.7392 & 0.344 &  \\
+MLP & iterative & 0.8685 & 0.0045 & $-$0.0026 & 0.9582 & 0.7388 & 0.7678 & 0.306 &  \\
 \bottomrule
 \end{tabular}
 \end{adjustbox}
@@ -447,11 +447,11 @@ MLP & iterative & 0.9639 & 0.0044 & $-$0.0002 & 0.8689 & 0.9608 & 0.9020 & 0.422
 \caption{F1-macro por estratégia de imputação.}
 \end{figure}
 
-\textbf{No HGB}, o NaN nativo (0,9820) fica à frente da mediana (0,9811) e do indicador (0,9814). Nenhuma imputação supera a referência, e o NaN nativo é o mais simples: o próprio modelo aprende o que a ausência significa em cada atributo.
+\textbf{No HGB}, o NaN nativo (0,8821) fica à frente da mediana (0,8817) e do indicador (0,8814). Nenhuma imputação supera a referência, e o NaN nativo é o mais simples: o próprio modelo aprende o que a ausência significa em cada atributo.
 
-\textbf{No RF}, o NaN nativo (0,9801) e a mediana (0,9791) empatam dentro de 1 desvio-padrão, e por isso fica a mediana, que é a referência dessa família.
+\textbf{No RF}, as quatro opções empatam (de 0,8807 a 0,8811), e por isso fica a mediana, que é a referência dessa família.
 
-\textbf{No MLP}, a mediana (0,9641) e a imputação iterativa (0,9639) empatam. A média perde pouco, mas o indicador perde 0,015. O indicador dobra o número de colunas numéricas com sinais binários fracos, e a rede acaba se ajustando a ruído.
+\textbf{No MLP}, a mediana (0,8711) fica à frente. A média (0,8692) e a imputação iterativa (0,8685) perdem pouco, mas o indicador perde 0,012. O indicador dobra o número de colunas numéricas com sinais binários fracos, e a rede acaba se ajustando a ruído.
 
 O indicador de ausência \textbf{não melhorou em nenhuma família}, apesar do padrão MNAR de \texttt{dst\_host\_serror\_rate}. Provavelmente, o sinal da ausência nesse atributo é pequeno perto do que os outros 40 atributos já informam. Registramos o resultado mesmo assim, porque ele contraria a expectativa que tínhamos na Etapa 1.
 
@@ -515,18 +515,18 @@ O material da disciplina alerta que a codificação 1-de-$c$ não é uma boa op�
 \begin{adjustbox}{max width=\linewidth}
 \begin{tabular}{llrrrrrrrc}
 \toprule
-Família & Opção & F1-macro & dp & ganho & F1 bruto & precisão anom. & recall anom. & limiar & escolhida \\
+Família & Opção & F1-macro & dp & ganho & sem conflitos & precisão anom. & recall anom. & limiar & escolhida \\
 \midrule
-RF & onehot & 0.9791 & 0.0021 & 0.0000 & 0.8800 & 0.9703 & 0.9492 & 0.360 & \checkmark \\
-RF & onehot\_rare & 0.9806 & 0.0017 & 0.0015 & 0.8807 & 0.9735 & 0.9520 & 0.358 & \\
-RF & frequency & 0.9792 & 0.0019 & 0.0001 & 0.8800 & 0.9718 & 0.9482 & 0.364 & \\
-RF & target & 0.9766 & 0.0037 & $-$0.0025 & 0.8780 & 0.9727 & 0.9378 & 0.376 & \\
-RF & ordinal & 0.9802 & 0.0020 & 0.0011 & 0.8805 & 0.9729 & 0.9510 & 0.358 & \\
+RF & onehot & 0.8808 & 0.0018 & 0.0000 & 0.9786 & 0.7534 & 0.8002 & 0.308 & \checkmark \\
+RF & onehot\_rare & 0.8812 & 0.0010 & 0.0004 & 0.9808 & 0.7570 & 0.7973 & 0.332 &  \\
+RF & frequency & 0.8803 & 0.0017 & $-$0.0005 & 0.9790 & 0.7563 & 0.7946 & 0.340 &  \\
+RF & target & 0.8800 & 0.0015 & $-$0.0008 & 0.9773 & 0.7520 & 0.7985 & 0.320 &  \\
+RF & ordinal & 0.8801 & 0.0011 & $-$0.0007 & 0.9778 & 0.7522 & 0.7987 & 0.316 &  \\
 \midrule
-MLP & onehot & 0.9641 & 0.0038 & 0.0000 & 0.8696 & 0.9534 & 0.9102 & 0.428 & \checkmark \\
-MLP & onehot\_rare & 0.9615 & 0.0023 & $-$0.0026 & 0.8701 & 0.9335 & 0.9189 & 0.434 & \\
-MLP & frequency & 0.9569 & 0.0069 & $-$0.0072 & 0.8653 & 0.9413 & 0.8952 & 0.450 & \\
-MLP & target & 0.9516 & 0.0079 & $-$0.0125 & 0.8626 & 0.9319 & 0.8868 & 0.398 & \\
+MLP & onehot & 0.8711 & 0.0044 & 0.0000 & 0.9643 & 0.7456 & 0.7705 & 0.344 & \checkmark \\
+MLP & onehot\_rare & 0.8730 & 0.0022 & 0.0019 & 0.9640 & 0.7389 & 0.7852 & 0.354 &  \\
+MLP & frequency & 0.8675 & 0.0059 & $-$0.0036 & 0.9563 & 0.7332 & 0.7696 & 0.324 &  \\
+MLP & target & 0.8651 & 0.0060 & $-$0.0060 & 0.9510 & 0.7288 & 0.7659 & 0.270 &  \\
 \bottomrule
 \end{tabular}
 \end{adjustbox}
@@ -538,9 +538,9 @@ MLP & target & 0.9516 & 0.0079 & $-$0.0125 & 0.8626 & 0.9319 & 0.8868 & 0.398 & 
 \caption{F1-macro por codificação de \texttt{service}.}
 \end{figure}
 
-\textbf{No RF}, as cinco opções empatam dentro de 1 desvio-padrão (de 0,9766 a 0,9806), e fica o \texttt{onehot}, que é a referência. O \texttt{target} é o pior: resumir 67 categorias num único número esconde combinações, como \texttt{service} $\times$ \texttt{flag}, que as árvores conseguem aproveitar no one-hot.
+\textbf{No RF}, as cinco opções empatam dentro de 1 desvio-padrão (de 0,8800 a 0,8812), e fica o \texttt{onehot}, que é a referência. O \texttt{target} é o pior: resumir 67 categorias num único número esconde combinações, como \texttt{service} $\times$ \texttt{flag}, que as árvores conseguem aproveitar no one-hot.
 
-\textbf{No MLP}, o \texttt{onehot} é o melhor (0,9641). A \texttt{frequency} (0,9569) e o \texttt{target} (0,9516) perdem por mais de 1 desvio-padrão. Para a rede, uma única coluna numérica força uma relação monotônica entre a categoria e a saída, e essa relação não existe: serviços com frequência parecida podem ter perfis de ataque opostos.
+\textbf{No MLP}, o \texttt{onehot\_rare} tem a maior média (0,8730), mas o ganho (0,0019) fica abaixo de 1 desvio-padrão (0,0044), e por isso fica o \texttt{onehot}. A \texttt{frequency} (0,8675) e o \texttt{target} (0,8651) perdem. Para a rede, uma única coluna numérica força uma relação monotônica entre a categoria e a saída, e essa relação não existe: serviços com frequência parecida podem ter perfis de ataque opostos.
 
 O alerta do material sobre alta cardinalidade \textbf{se confirma só em parte}. A cauda de fato é longa, com 50 categorias abaixo de 0,1\% das linhas cada, mas essas colunas raras quase não pesam: reuni-las (\texttt{onehot\_rare}) não muda o resultado além do ruído. Com 70 mil linhas, as 67 colunas esparsas não atrapalham os modelos, e o one-hot preserva toda a informação sem criar uma ordem falsa.
 
@@ -576,27 +576,27 @@ O balanceador é o último passo antes do modelo, dentro do pipeline. Ele só re
 \begin{adjustbox}{max width=\linewidth}
 \begin{tabular}{llrrrrrrrc}
 \toprule
-Família & Opção & F1-macro & dp & ganho & F1 bruto & precisão anom. & recall anom. & limiar & escolhida \\
+Família & Opção & F1-macro & dp & ganho & sem conflitos & precisão anom. & recall anom. & limiar & escolhida \\
 \midrule
-HGB & none & 0.9820 & 0.0015 & 0.0000 & 0.8816 & 0.9778 & 0.9531 & 0.284 & \checkmark \\
-HGB & class\_weight & 0.9805 & 0.0020 & $-$0.0015 & 0.8808 & 0.9764 & 0.9487 & 0.708 & \\
+HGB & none & 0.8821 & 0.0009 & 0.0000 & 0.9815 & 0.7565 & 0.8017 & 0.110 & \checkmark \\
+HGB & class\_weight & 0.8807 & 0.0014 & $-$0.0014 & 0.9799 & 0.7582 & 0.7941 & 0.606 &  \\
 \midrule
-RF & none & 0.9791 & 0.0021 & 0.0000 & 0.8800 & 0.9703 & 0.9492 & 0.360 & \checkmark \\
-RF & class\_weight & 0.9738 & 0.0026 & $-$0.0053 & 0.8760 & 0.9745 & 0.9257 & 0.618 & \\
-RF & ros (10.000) & 0.9780 & 0.0014 & $-$0.0011 & 0.8786 & 0.9774 & 0.9383 & 0.492 & \\
-RF & rus (10.000) & 0.9716 & 0.0021 & $-$0.0075 & 0.8753 & 0.9602 & 0.9306 & 0.650 & \\
-RF & smote (10.000) & 0.9806 & 0.0012 & 0.0015 & 0.8809 & 0.9729 & 0.9526 & 0.412 & \\
-RF & borderline\_smote (10.000) & 0.9801 & 0.0012 & 0.0010 & 0.8803 & 0.9705 & 0.9526 & 0.420 & \\
-RF & smote\_tomek (10.000) & 0.9807 & 0.0012 & 0.0016 & 0.8809 & 0.9748 & 0.9510 & 0.414 & \\
-RF & hybrid (5.000 / 20.000) & 0.9758 & 0.0046 & $-$0.0033 & 0.8788 & 0.9592 & 0.9477 & 0.524 & \\
+RF & none & 0.8808 & 0.0018 & 0.0000 & 0.9786 & 0.7534 & 0.8002 & 0.308 & \checkmark \\
+RF & class\_weight & 0.8763 & 0.0012 & $-$0.0045 & 0.9710 & 0.7469 & 0.7897 & 0.524 &  \\
+RF & ros (10.000) & 0.8799 & 0.0016 & $-$0.0009 & 0.9762 & 0.7493 & 0.8012 & 0.382 &  \\
+RF & rus (10.000) & 0.8746 & 0.0027 & $-$0.0062 & 0.9690 & 0.7497 & 0.7794 & 0.628 &  \\
+RF & smote (10.000) & 0.8807 & 0.0014 & $-$0.0001 & 0.9787 & 0.7541 & 0.7987 & 0.372 &  \\
+RF & borderline\_smote (10.000) & 0.8810 & 0.0026 & 0.0002 & 0.9773 & 0.7504 & 0.8041 & 0.352 &  \\
+RF & smote\_tomek (10.000) & 0.8816 & 0.0011 & 0.0008 & 0.9796 & 0.7543 & 0.8022 & 0.354 &  \\
+RF & hybrid (5.000 / 20.000) & 0.8794 & 0.0019 & $-$0.0014 & 0.9761 & 0.7512 & 0.7968 & 0.498 &  \\
 \midrule
-MLP & none & 0.9641 & 0.0038 & 0.0000 & 0.8696 & 0.9534 & 0.9102 & 0.428 & \checkmark \\
-MLP & ros (10.000) & 0.9628 & 0.0034 & $-$0.0013 & 0.8700 & 0.9454 & 0.9113 & 0.680 & \\
-MLP & rus (10.000) & 0.9509 & 0.0053 & $-$0.0132 & 0.8648 & 0.9000 & 0.9108 & 0.698 & \\
-MLP & smote (10.000) & 0.9588 & 0.0046 & $-$0.0053 & 0.8674 & 0.9342 & 0.9074 & 0.628 & \\
-MLP & borderline\_smote (10.000) & 0.9318 & 0.0112 & $-$0.0323 & 0.8544 & 0.8494 & 0.8882 & 0.588 & \\
-MLP & smote\_tomek (10.000) & 0.9592 & 0.0057 & $-$0.0049 & 0.8690 & 0.9296 & 0.9130 & 0.586 & \\
-MLP & hybrid (5.000 / 20.000) & 0.9603 & 0.0018 & $-$0.0038 & 0.8695 & 0.9274 & 0.9191 & 0.604 & \\
+MLP & none & 0.8711 & 0.0044 & 0.0000 & 0.9643 & 0.7456 & 0.7705 & 0.344 & \checkmark \\
+MLP & ros (10.000) & 0.8693 & 0.0025 & $-$0.0018 & 0.9605 & 0.7409 & 0.7683 & 0.640 &  \\
+MLP & rus (10.000) & 0.8664 & 0.0017 & $-$0.0047 & 0.9512 & 0.7229 & 0.7772 & 0.644 &  \\
+MLP & smote (10.000) & 0.8680 & 0.0022 & $-$0.0031 & 0.9565 & 0.7330 & 0.7720 & 0.552 &  \\
+MLP & borderline\_smote (10.000) & 0.8548 & 0.0068 & $-$0.0163 & 0.9315 & 0.7045 & 0.7514 & 0.572 &  \\
+MLP & smote\_tomek (10.000) & 0.8702 & 0.0035 & $-$0.0009 & 0.9591 & 0.7341 & 0.7794 & 0.520 &  \\
+MLP & hybrid (5.000 / 20.000) & 0.8704 & 0.0026 & $-$0.0007 & 0.9598 & 0.7357 & 0.7786 & 0.544 &  \\
 \bottomrule
 \end{tabular}
 \end{adjustbox}
@@ -608,13 +608,13 @@ MLP & hybrid (5.000 / 20.000) & 0.9603 & 0.0018 & $-$0.0038 & 0.8695 & 0.9274 & 
 \caption{F1-macro por técnica de balanceamento.}
 \end{figure}
 
-\textbf{Nenhuma técnica supera a opção de não balancear}, em nenhuma família. No RF, o SMOTE (0,9806) e o SMOTE com Tomek (0,9807) ficam um pouco à frente da referência (0,9791 $\pm$ 0,0021), mas dentro do ruído. Por isso, a escolha foi \texttt{none}.
+\textbf{Nenhuma técnica supera a opção de não balancear}, em nenhuma família. No RF, o SMOTE com Tomek (0,8816) fica um pouco à frente da referência (0,8808 $\pm$ 0,0018), mas dentro do ruído. Por isso, a escolha foi \texttt{none}.
 
 O \textbf{RUS piora} no RF e no MLP. Descartar cerca de 80\% das linhas \texttt{normal} faz o modelo perder informação sobre o tráfego legítimo, e os falsos positivos aumentam, como mostra a queda da precisão. O \texttt{class\_weight} também piora no RF.
 
-\textbf{Por que balancear não ajuda aqui?} O F1-macro é calculado depois de escolher o limiar de decisão nas previsões \emph{out-of-fold}. Reamostrar muda a probabilidade que o modelo atribui à classe \texttt{anomaly}, mas o limiar ajustado já desloca a fronteira para o ponto que maximiza o F1-macro. A coluna \emph{limiar} mostra isso: com ROS ou SMOTE, o limiar sobe (no RF, de 0,36 para 0,49 e 0,41), compensando a probabilidade inflada. Em resumo, o balanceamento e o ajuste do limiar resolvem o mesmo problema, mas o limiar faz isso sem distorcer os dados de treino.
+\textbf{Por que balancear não ajuda aqui?} O F1-macro é calculado depois de escolher o limiar de decisão nas previsões \emph{out-of-fold}. Reamostrar muda a probabilidade que o modelo atribui à classe \texttt{anomaly}, mas o limiar ajustado já desloca a fronteira para o ponto que maximiza o F1-macro. A coluna \emph{limiar} mostra isso: com ROS ou SMOTE, o limiar sobe (no RF, de 0,31 para 0,38 e 0,37), compensando a probabilidade inflada. Em resumo, o balanceamento e o ajuste do limiar resolvem o mesmo problema, mas o limiar faz isso sem distorcer os dados de treino.
 
-Há ainda uma \textbf{limitação do SMOTE} nesta base. Ele roda depois do one-hot e interpola também as colunas binárias, gerando valores fracionários (algo como ``meio \texttt{http}, meio \texttt{ftp}'') que não existem em conexões reais. Isso explica parte do resultado fraco no MLP, sobretudo o do \texttt{borderline\_smote} (0,9318).
+Há ainda uma \textbf{limitação do SMOTE} nesta base. Ele roda depois do one-hot e interpola também as colunas binárias, gerando valores fracionários (algo como ``meio \texttt{http}, meio \texttt{ftp}'') que não existem em conexões reais. Isso explica parte do resultado fraco no MLP, sobretudo o do \texttt{borderline\_smote} (0,8548).
 
 \section{Normalização e transformação numérica (requisito 4)}
 
@@ -669,13 +669,13 @@ As árvores (HGB e RF) dividem os dados por limiares e não se alteram com trans
 \begin{adjustbox}{max width=\linewidth}
 \begin{tabular}{llrrrrrrrc}
 \toprule
-Família & Opção & F1-macro & dp & ganho & F1 bruto & precisão anom. & recall anom. & limiar & escolhida \\
+Família & Opção & F1-macro & dp & ganho & sem conflitos & precisão anom. & recall anom. & limiar & escolhida \\
 \midrule
-MLP & standard + log1p & 0.9641 & 0.0038 & 0.0000 & 0.8696 & 0.9534 & 0.9102 & 0.428 & \checkmark \\
-MLP & standard sem log1p & 0.9551 & 0.0032 & $-$0.0090 & 0.8629 & 0.9471 & 0.8831 & 0.480 & \\
-MLP & minmax + log1p & 0.9574 & 0.0065 & $-$0.0067 & 0.8641 & 0.9611 & 0.8799 & 0.432 & \\
-MLP & robust + log1p & 0.9485 & 0.0077 & $-$0.0156 & 0.8596 & 0.9323 & 0.8725 & 0.416 & \\
-MLP & quantile sem log1p & 0.9584 & 0.0056 & $-$0.0057 & 0.8655 & 0.9530 & 0.8901 & 0.464 & \\
+MLP & standard + log1p & 0.8711 & 0.0044 & 0.0000 & 0.9643 & 0.7456 & 0.7705 & 0.344 & \checkmark \\
+MLP & standard sem log1p & 0.8654 & 0.0033 & $-$0.0057 & 0.9545 & 0.7351 & 0.7593 & 0.334 &  \\
+MLP & minmax + log1p & 0.8669 & 0.0057 & $-$0.0042 & 0.9585 & 0.7443 & 0.7553 & 0.284 &  \\
+MLP & robust + log1p & 0.8623 & 0.0072 & $-$0.0088 & 0.9469 & 0.7248 & 0.7595 & 0.288 &  \\
+MLP & quantile sem log1p & 0.8646 & 0.0045 & $-$0.0065 & 0.9531 & 0.7356 & 0.7561 & 0.374 &  \\
 \bottomrule
 \end{tabular}
 \end{adjustbox}
@@ -687,9 +687,9 @@ MLP & quantile sem log1p & 0.9584 & 0.0056 & $-$0.0057 & 0.8655 & 0.9530 & 0.890
 \caption{F1-macro por normalização e transformação numérica (MLP).}
 \end{figure}
 
-O \texttt{log1p} seguido de padronização foi a melhor opção (0,9641 $\pm$ 0,0038). Sem o \texttt{log1p}, o resultado cai para 0,9551. Com assimetrias acima de 100, a padronização sozinha deixa quase todas as linhas espremidas perto de zero e algumas poucas em valores enormes, e a rede não consegue separar o tráfego comum.
+O \texttt{log1p} seguido de padronização foi a melhor opção (0,8711 $\pm$ 0,0044). Sem o \texttt{log1p}, o resultado cai para 0,8654. Com assimetrias acima de 100, a padronização sozinha deixa quase todas as linhas espremidas perto de zero e algumas poucas em valores enormes, e a rede não consegue separar o tráfego comum.
 
-O \texttt{minmax} (0,9574) sofre do mesmo problema, porque o máximo é definido por poucas linhas extremas. O \texttt{robust} foi o pior (0,9485): em atributos com mais da metade dos valores iguais a zero, o intervalo interquartil é zero ou quase zero, e a escala explode. Já o \texttt{quantile} (0,9584) resolve a cauda, mas achata as diferenças entre os valores grandes, que são justamente as que separam alguns ataques de volume.
+O \texttt{minmax} (0,8669) sofre do mesmo problema, porque o máximo é definido por poucas linhas extremas. O \texttt{robust} foi o pior (0,8623): em atributos com mais da metade dos valores iguais a zero, o intervalo interquartil é zero ou quase zero, e a escala explode. Já o \texttt{quantile} (0,8646) resolve a cauda, mas achata as diferenças entre os valores grandes, que são justamente as que separam alguns ataques de volume.
 
 \section{Redução de dimensionalidade (requisito 5)}
 
@@ -721,19 +721,19 @@ O enunciado permite escolher entre redução de dimensionalidade e seleção de 
 \begin{adjustbox}{max width=\linewidth}
 \begin{tabular}{llrrrrrrrc}
 \toprule
-Família & Opção & F1-macro & dp & ganho & F1 bruto & precisão anom. & recall anom. & limiar & escolhida \\
+Família & Opção & F1-macro & dp & ganho & sem conflitos & precisão anom. & recall anom. & limiar & escolhida \\
 \midrule
-RF & none & 0.9791 & 0.0021 & 0.0000 & 0.8800 & 0.9703 & 0.9492 & 0.360 & \\
-RF & pca & 0.6913 & 0.1187 & $-$0.2878 & 0.6669 & 0.5230 & 0.3930 & 0.374 & \\
-RF & kbest\_f (k = 30) & 0.9585 & 0.0046 & $-$0.0206 & 0.8645 & 0.9612 & 0.8816 & 0.456 & \\
-RF & kbest\_mi (k = 30) & 0.9748 & 0.0059 & $-$0.0043 & 0.8776 & 0.9572 & 0.9461 & 0.330 & \\
-RF & tree\_select & 0.9813 & 0.0020 & 0.0022 & 0.8813 & 0.9708 & 0.9570 & 0.352 & \checkmark \\
+RF & none & 0.8808 & 0.0018 & 0.0000 & 0.9786 & 0.7534 & 0.8002 & 0.308 & \checkmark \\
+RF & pca & 0.7201 & 0.0537 & $-$0.1607 & 0.7393 & 0.4704 & 0.5013 & 0.318 &  \\
+RF & kbest\_f (k = 30) & 0.8639 & 0.0043 & $-$0.0169 & 0.9539 & 0.7416 & 0.7465 & 0.402 &  \\
+RF & kbest\_mi (k = 30) & 0.8785 & 0.0030 & $-$0.0023 & 0.9755 & 0.7522 & 0.7921 & 0.310 &  \\
+RF & tree\_select & 0.8819 & 0.0016 & 0.0011 & 0.9807 & 0.7551 & 0.8024 & 0.318 &  \\
 \midrule
-MLP & none & 0.9641 & 0.0038 & 0.0000 & 0.8696 & 0.9534 & 0.9102 & 0.428 & \checkmark \\
-MLP & pca & 0.9509 & 0.0050 & $-$0.0132 & 0.8622 & 0.9285 & 0.8855 & 0.446 & \\
-MLP & kbest\_f (k = 30) & 0.9498 & 0.0116 & $-$0.0143 & 0.8591 & 0.9550 & 0.8575 & 0.468 & \\
-MLP & kbest\_mi (k = 30) & 0.9531 & 0.0054 & $-$0.0110 & 0.8610 & 0.9427 & 0.8803 & 0.456 & \\
-MLP & tree\_select & 0.9648 & 0.0025 & 0.0007 & 0.8720 & 0.9427 & 0.9222 & 0.434 & \\
+MLP & none & 0.8711 & 0.0044 & 0.0000 & 0.9643 & 0.7456 & 0.7705 & 0.344 & \checkmark \\
+MLP & pca & 0.8655 & 0.0031 & $-$0.0056 & 0.9508 & 0.7257 & 0.7703 & 0.312 &  \\
+MLP & kbest\_f (k = 30) & 0.8600 & 0.0096 & $-$0.0111 & 0.9481 & 0.7410 & 0.7325 & 0.378 &  \\
+MLP & kbest\_mi (k = 30) & 0.8641 & 0.0063 & $-$0.0070 & 0.9520 & 0.7341 & 0.7556 & 0.328 &  \\
+MLP & tree\_select & 0.8724 & 0.0017 & 0.0013 & 0.9639 & 0.7407 & 0.7808 & 0.362 &  \\
 \bottomrule
 \end{tabular}
 \end{adjustbox}
@@ -742,61 +742,60 @@ MLP & tree\_select & 0.9648 & 0.0025 & 0.0007 & 0.8720 & 0.9427 & 0.9222 & 0.434
 \begin{figure}[H]
 \centering
 \includegraphics[width=\linewidth,height=0.28\textheight,keepaspectratio]{figuras/pre_reducao.png}
-\caption{F1-macro por técnica de redução. O eixo foi cortado em 0,93 para que as diferenças entre as demais opções fiquem visíveis; o PCA no RF (0,691) aparece indicado fora da escala.}
+\caption{F1-macro por técnica de redução. O eixo foi cortado em 0,85 para que as diferenças entre as demais opções fiquem visíveis; o PCA no RF (0,720) aparece indicado fora da escala.}
 \end{figure}
 
 \subsection{O PCA no Random Forest}
 
-O resultado do PCA no RF (0,69) é um \textbf{artefato da comparação, e não da técnica}. O RF trabalha sem escala (\texttt{scaling="none"}), e um PCA sem padronização é dominado pelos atributos de maior variância. Os volumes \texttt{src\_bytes} e \texttt{dst\_bytes}, na casa dos milhões, ocupam os primeiros componentes, e as taxas, que ficam entre 0 e 1, praticamente desaparecem. Para fazer uma comparação justa, rodamos o PCA no RF com os dados padronizados e com \texttt{log1p}, como no MLP:
+O resultado do PCA no RF (0,72) é um \textbf{artefato da comparação, e não da técnica}. O RF trabalha sem escala (\texttt{scaling="none"}), e um PCA sem padronização é dominado pelos atributos de maior variância. Os volumes \texttt{src\_bytes} e \texttt{dst\_bytes}, na casa dos milhões, ocupam os primeiros componentes, e as taxas, que ficam entre 0 e 1, praticamente desaparecem. Para fazer uma comparação justa, rodamos o PCA no RF com os dados padronizados e com \texttt{log1p}, como no MLP:
 
 \begin{table}[H]
 \centering
 \caption{RF com padronização e \texttt{log1p}: sem redução $\times$ PCA.}
 \begin{tabular}{lrrr}
 \toprule
-Opção & F1-macro & dp & F1 bruto \\
+Opção & F1-macro & dp & sem conflitos \\
 \midrule
-none & 0.9800 & 0.0017 & 0.8804 \\
-pca & 0.9593 & 0.0025 & 0.8673 \\
+none & 0.8815 & 0.0017 & 0.9802 \\
+pca & 0.8686 & 0.0026 & 0.9588 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \subsection{O que concluímos}
 
-Com os dados padronizados, o PCA no RF deixa de ser um desastre, mas ainda perde para a opção sem redução (0,9593 contra 0,9800). No MLP, ele também perde (0,9509 contra 0,9641). O PCA combina os atributos nas direções de \textbf{maior variância}, que não são necessariamente as que separam as classes. Além disso, o RF deixa de poder dividir os dados por um atributo original de cada vez.
+Com os dados padronizados, o PCA no RF deixa de ser um desastre, mas ainda perde para a opção sem redução (0,8686 contra 0,8815). No MLP, ele também perde (0,8655 contra 0,8711). O PCA combina os atributos nas direções de \textbf{maior variância}, que não são necessariamente as que separam as classes. Além disso, o RF deixa de poder dividir os dados por um atributo original de cada vez.
 
 O \texttt{kbest\_f} e o \texttt{kbest\_mi}, com 30 colunas, perdem nas duas famílias. O critério deles é univariado: avalia cada coluna isoladamente e descarta as que só ajudam em combinação com outras, como as categorias de \texttt{service} que importam apenas junto com certas \texttt{flag}.
 
-O \textbf{\texttt{tree\_select} é a única técnica que ajuda}. No RF, chega a 0,9813 $\pm$ 0,0020, contra 0,9791 $\pm$ 0,0021 sem redução, um ganho de 0,0022, logo acima de 1 desvio-padrão. No MLP, empata (0,9648 contra 0,9641). A seleção por árvores avalia as colunas em conjunto e mantém só as que têm importância acima da mediana; as descartadas, como as colunas de serviços raros, quase não são usadas pelas árvores.
+O \textbf{\texttt{tree\_select} é a única técnica que não perde, mas não passa da regra}. No RF, chega a 0,8819 $\pm$ 0,0016, contra 0,8808 $\pm$ 0,0018 sem redução, um ganho de 0,0011, abaixo de 1 desvio-padrão. No MLP, também empata (0,8724 contra 0,8711). A seleção por árvores avalia as colunas em conjunto e mantém só as que têm importância acima da mediana; as descartadas, como as colunas de serviços raros, quase não são usadas pelas árvores, e por isso ela não perde nada.
 
-Ficamos com o \texttt{tree\_select} no RF e sem redução no MLP. Há uma vantagem extra para a Etapa 4: ao contrário do PCA, a seleção mantém os \textbf{atributos originais}, o que preserva a explicabilidade do modelo. Como o ganho no RF passou da regra por muito pouco, a Seção 9 confere se ele se sustenta com mais repetições.
+Pela regra, ficamos sem redução nas duas famílias. Como o \texttt{tree\_select} no RF ficou perto da regra, a Seção 9 confere com mais repetições se ele esconde um ganho real.
 
 \section{Robustez das escolhas (validação cruzada repetida 3$\times$5)}
 
-A busca por coordenadas faz muitas comparações seguidas, e algumas escolhas passaram da regra por pouco. Para verificar se as duas mudanças adotadas são reais, repetimos a validação cruzada 3 vezes, com sementes diferentes (3 $\times$ 5 = 15 folds), comparando a configuração de partida com a escolhida. O MLP ficou de fora porque a busca manteve a configuração de partida em todos os eixos.
+A busca por coordenadas faz muitas comparações seguidas, e as diferenças são de milésimos. Repetimos a validação cruzada 3 vezes, com sementes diferentes (3 $\times$ 5 = 15 folds), em dois casos: no HGB, a configuração de partida contra a escolhida, a única mudança adotada; no RF, a configuração escolhida (igual à de partida) contra o \texttt{tree\_select}, a alternativa que ficou mais perto da regra. O MLP ficou de fora porque a busca manteve a configuração de partida em todos os eixos.
 
 \begin{table}[H]
 \centering
-\caption{Configuração de partida $\times$ escolhida, em validação cruzada 3$\times$5.}
+\caption{Validação cruzada 3$\times$5: no HGB, configuração de partida $\times$ escolhida; no RF, escolhida $\times$ \texttt{tree\_select}.}
 \begin{tabular}{llrrrrr}
 \toprule
-Família & Configuração & F1-macro & dp & F1 bruto & segundos & ganho \\
+Família & Configuração & F1-macro & dp & sem conflitos & segundos & ganho \\
 \midrule
-HGB & partida & 0.9741 & 0.0033 & 0.8771 & 43,4 & 0.0000 \\
-HGB & escolhida & 0.9824 & 0.0022 & 0.8816 & 45,9 & 0.0083 \\
+HGB & partida & 0.8777 & 0.0032 & 0.9741 & 40,4 & 0.0000 \\
+HGB & escolhida & 0.8815 & 0.0027 & 0.9808 & 41,2 & 0.0038 \\
 \midrule
-RF & partida & 0.9798 & 0.0031 & 0.8806 & 121,5 & 0.0000 \\
-RF & escolhida & 0.9806 & 0.0028 & 0.8808 & 172,9 & 0.0008 \\
+RF & escolhida (sem redução) & 0.8809 & 0.0030 & 0.9793 & 104,1 & 0.0000 \\
+RF & tree\_select & 0.8812 & 0.0029 & 0.9797 & 147,3 & 0.0003 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\textbf{No HGB, a limpeza de rótulos se confirma.} Com 15 folds, a \texttt{majority\_label} fica em 0,9824 $\pm$ 0,0022, contra 0,9741 $\pm$ 0,0033 da partida. O ganho de 0,0083 passa de 2 desvios-padrão, e é a mudança de pré-processamento com efeito real nesta base.
+\textbf{No HGB, a limpeza de rótulos se confirma.} Com 15 folds, a \texttt{drop\_inconsistent} fica em 0,8815 $\pm$ 0,0027, contra 0,8777 $\pm$ 0,0032 da partida. O ganho de 0,0038 passa de 1 desvio-padrão, e é a mudança de pré-processamento com efeito real nesta base.
 
-\textbf{No RF, o ganho do \texttt{tree\_select} não se confirma.} Ele cai para 0,0008 (0,9806 contra 0,9798, com desvio-padrão de 0,0031), bem abaixo de 1 desvio-padrão. O ganho de 0,0022 visto na busca era, em boa parte, variação de amostragem dos 5 folds. Esse é um risco previsível quando se fazem muitas comparações seguidas.
+\textbf{No RF, o empate do \texttt{tree\_select} se confirma.} Com 15 folds, o ganho cai para 0,0003 (0,8812 contra 0,8809, com desvio-padrão de 0,0030), dez vezes menor que 1 desvio-padrão. O ganho de 0,0011 visto na busca era variação de amostragem dos 5 folds, um risco previsível quando se fazem muitas comparações seguidas. O RF fica sem redução.
 
-Mesmo assim, \textbf{decidimos manter o \texttt{tree\_select} no RF, mas pelo motivo certo}. O desempenho é equivalente ao de não reduzir, com metade das colunas e apenas atributos originais, o que barateia o treino e facilita a explicabilidade na Etapa 4. Por isso, tratamos essa técnica como ``equivalente'', e não como ``melhor''.
 
 \section{Tabela comparativa consolidada e configurações escolhidas}
 
@@ -811,30 +810,30 @@ A tabela completa, com as 71 configurações e os experimentos extras, está em 
 \toprule
 Família & Eixo & Escolhida & F1-macro & dp & Maior F1 do eixo & F1 maior \\
 \midrule
-HGB & redundância & majority\_label & 0.9820 & 0.0015 & majority\_label & 0.9820 \\
-HGB & domínio & nan & 0.9820 & 0.0015 & nan & 0.9820 \\
-HGB & imputação & none & 0.9820 & 0.0015 & none & 0.9820 \\
-HGB & balanceamento & none & 0.9820 & 0.0015 & none & 0.9820 \\
+HGB & redundância & drop\_inconsistent & 0.8821 & 0.0009 & drop\_inconsistent & 0.8821 \\
+HGB & domínio & nan & 0.8821 & 0.0009 & nan & 0.8821 \\
+HGB & imputação & none & 0.8821 & 0.0009 & none & 0.8821 \\
+HGB & balanceamento & none & 0.8821 & 0.0009 & none & 0.8821 \\
 \midrule
-RF & redundância & none & 0.9791 & 0.0021 & relabel\_model & 0.9791 \\
-RF & imputação & median & 0.9791 & 0.0021 & none & 0.9801 \\
-RF & codificação & onehot & 0.9791 & 0.0021 & onehot\_rare & 0.9806 \\
-RF & balanceamento & none & 0.9791 & 0.0021 & smote\_tomek (10.000) & 0.9807 \\
-RF & redução & tree\_select & 0.9813 & 0.0020 & tree\_select & 0.9813 \\
+RF & redundância & none & 0.8808 & 0.0018 & drop\_duplicates & 0.8816 \\
+RF & imputação & median & 0.8808 & 0.0018 & mean & 0.8811 \\
+RF & codificação & onehot & 0.8808 & 0.0018 & onehot\_rare & 0.8812 \\
+RF & balanceamento & none & 0.8808 & 0.0018 & smote\_tomek (10.000) & 0.8816 \\
+RF & redução & none & 0.8808 & 0.0018 & tree\_select & 0.8819 \\
 \midrule
-MLP & redundância & none & 0.9641 & 0.0038 & drop\_inconsistent & 0.9657 \\
-MLP & domínio & nan & 0.9641 & 0.0038 & nan & 0.9641 \\
-MLP & imputação & median & 0.9641 & 0.0038 & median & 0.9641 \\
-MLP & codificação & onehot & 0.9641 & 0.0038 & onehot & 0.9641 \\
-MLP & escala & standard + log1p & 0.9641 & 0.0038 & standard + log1p & 0.9641 \\
-MLP & balanceamento & none & 0.9641 & 0.0038 & none & 0.9641 \\
-MLP & redução & none & 0.9641 & 0.0038 & tree\_select & 0.9648 \\
+MLP & redundância & none & 0.8711 & 0.0044 & none & 0.8711 \\
+MLP & domínio & nan & 0.8711 & 0.0044 & nan & 0.8711 \\
+MLP & imputação & median & 0.8711 & 0.0044 & median & 0.8711 \\
+MLP & codificação & onehot & 0.8711 & 0.0044 & onehot\_rare & 0.8730 \\
+MLP & escala & standard + log1p & 0.8711 & 0.0044 & standard + log1p & 0.8711 \\
+MLP & balanceamento & none & 0.8711 & 0.0044 & none & 0.8711 \\
+MLP & redução & none & 0.8711 & 0.0044 & tree\_select & 0.8724 \\
 \bottomrule
 \end{tabular}
 \end{adjustbox}
 \end{table}
 
-Quando a opção escolhida não é a de maior F1-macro, é porque a diferença ficou dentro de 1 desvio-padrão, e a regra preferiu a opção mais simples. Isso aconteceu em seis casos, sempre com diferenças de no máximo 0,0016 (no RF, a \texttt{relabel\_model} empata exatamente com \texttt{none}).
+Quando a opção escolhida não é a de maior F1-macro, é porque a diferença ficou dentro de 1 desvio-padrão, e a regra preferiu a opção mais simples. Isso aconteceu em sete casos, sempre com diferenças de no máximo 0,0019.
 
 A configuração final de pré-processamento de cada família segue para a Etapa 3, onde os algoritmos e os hiperparâmetros serão comparados. Ela fica registrada em \texttt{results/melhores\_configuracoes.json}, que depois também vai guardar os hiperparâmetros da Etapa 3.
 
@@ -846,8 +845,8 @@ A configuração final de pré-processamento de cada família segue para a Etapa
 \toprule
  & redundância & domínio & imputação & escala & log1p & \texttt{service} & demais categóricos & balanceamento & redução \\
 \midrule
-HGB & majority\_label & nan & none & none & não & ordinal & ordinal & none & --- \\
-RF & none & nan & median & none & não & onehot & onehot & none & tree\_select \\
+HGB & drop\_inconsistent & nan & none & none & não & ordinal & ordinal & none & --- \\
+RF & none & nan & median & none & não & onehot & onehot & none & none \\
 MLP & none & nan & median & standard & sim & onehot & --- & none & none \\
 \bottomrule
 \end{tabular}
@@ -860,11 +859,11 @@ MLP & none & nan & median & standard & sim & onehot & --- & none & none \\
 \begin{adjustbox}{max width=\linewidth}
 \begin{tabular}{lrrrrrrr}
 \toprule
-Família & F1-macro & dp & F1 bruto & precisão anom. & recall anom. & F1 da partida & ganho total \\
+Família & F1-macro & dp & sem conflitos & precisão anom. & recall anom. & F1 da partida & ganho total \\
 \midrule
-HGB & 0.9820 & 0.0015 & 0.8816 & 0.9778 & 0.9531 & 0.9754 & 0.0066 \\
-RF & 0.9813 & 0.0020 & 0.8813 & 0.9708 & 0.9570 & 0.9791 & 0.0022 \\
-MLP & 0.9641 & 0.0038 & 0.8696 & 0.9534 & 0.9102 & 0.9641 & 0.0000 \\
+HGB & 0.8821 & 0.0009 & 0.9815 & 0.7565 & 0.8017 & 0.8777 & 0.0044 \\
+RF & 0.8808 & 0.0018 & 0.9786 & 0.7534 & 0.8002 & 0.8808 & 0.0000 \\
+MLP & 0.8711 & 0.0044 & 0.9643 & 0.7456 & 0.7705 & 0.8711 & 0.0000 \\
 \bottomrule
 \end{tabular}
 \end{adjustbox}
@@ -880,13 +879,13 @@ MLP & 0.9641 & 0.0038 & 0.8696 & 0.9534 & 0.9102 & 0.9641 & 0.0000 \\
 \toprule
 Requisito & Técnicas comparadas & Escolha & Justificativa \\
 \midrule
-1. Redundância e inconsistência & none, drop\_duplicates, drop\_inconsistent, majority\_label, relabel\_model & \textbf{majority\_label} (HGB); none (RF, MLP) & o boosting memoriza rótulos trocados; o bagging dilui o ruído \\
+1. Redundância e inconsistência & none, drop\_duplicates, drop\_inconsistent, majority\_label, relabel\_model & \textbf{drop\_inconsistent} (HGB); none (RF, MLP) & o boosting memoriza rótulos trocados; o bagging dilui o ruído \\
 Valores impossíveis & nan, none, clip & \textbf{nan} & o valor original é irrecuperável; saturar inventa um dado \\
 Ausentes & NaN nativo, média, mediana, mediana + indicador, iterativa & \textbf{NaN nativo} (HGB); \textbf{mediana} (RF, MLP) & nos empates, vence a opção mais simples que o modelo aceita \\
 2. Balanceamento & class\_weight, ROS, RUS, SMOTE, Borderline-SMOTE, SMOTE + Tomek, híbrido & \textbf{nenhum} & o limiar ajustado já trata o desbalanceamento; o RUS perde informação \\
 3. Codificação de \texttt{service} & one-hot, one-hot com raras, frequência, target, ordinal, nativa & \textbf{one-hot} (RF, MLP); nativa (HGB) & não cria ordem falsa; 70 mil linhas sustentam 67 colunas \\
 4. Transformação numérica & standard, minmax, robust, quantile, com e sem log1p & \textbf{log1p + standard} (MLP); nenhuma (árvores) & caudas longas; árvores não dependem de escala \\
-5. Redução & PCA, SelectKBest (F e MI), seleção por árvores & \textbf{tree\_select} (RF); nenhuma (MLP, HGB) & equivalente a não reduzir (CV 3$\times$5), com metade das colunas e atributos originais; o PCA perde informação que separa as classes \\
+5. Redução & PCA, SelectKBest (F e MI), seleção por árvores & \textbf{nenhuma} & o \texttt{tree\_select} empata com não reduzir (CV 3$\times$5); o PCA perde informação que separa as classes \\
 \bottomrule
 \end{tabular}
 \end{adjustbox}
@@ -894,8 +893,8 @@ Ausentes & NaN nativo, média, mediana, mediana + indicador, iterativa & \textbf
 
 \textbf{Lições para a Etapa 3.}
 \begin{itemize}
-\item O ganho real do pré-processamento veio da \textbf{limpeza de rótulos} no boosting. Os outros eixos pouco mudaram o resultado, e o único outro ganho, o \texttt{tree\_select} no RF, não resistiu à validação repetida. Daqui em diante, o desempenho depende mais do algoritmo e dos hiperparâmetros do que do pré-processamento.
-\item As árvores (HGB com 0,9824 e RF com 0,9806 na validação 3$\times$5) estão à frente do MLP (0,9641). Na Etapa 3, vamos comparar pelo menos HGB, XGBoost e RF com estas configurações, e incluir MLP, KNN e Naive Bayes como contraste, ajustando os hiperparâmetros com o mesmo protocolo de validação agrupada.
+\item O ganho real do pré-processamento veio da \textbf{limpeza de rótulos} no boosting. Nenhum outro eixo passou da regra. Daqui em diante, o desempenho depende mais do algoritmo e dos hiperparâmetros do que do pré-processamento, e todos os modelos esbarram no teto de 0,905 imposto pelos rótulos contraditórios.
+\item As árvores (HGB com 0,8815 e RF com 0,8809 na validação 3$\times$5) estão à frente do MLP (0,8711). Na Etapa 3, vamos comparar pelo menos HGB, XGBoost e RF com estas configurações, e incluir MLP, KNN e Naive Bayes como contraste, ajustando os hiperparâmetros com o mesmo protocolo de validação agrupada.
 \item Também vamos avaliar um \emph{ensemble} (voto) das melhores árvores e congelar a configuração final em \texttt{results/final\_config.json} antes de qualquer contato com o teste.
 \end{itemize}
 
