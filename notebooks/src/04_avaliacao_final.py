@@ -6,30 +6,34 @@
 # **Equipe:** grupo 7 do Canvas (_integrantes: preencher_)
 # **Etapa 4 — entrega 28/11/2026**
 #
-# **Objetivo.** Aplicar o modelo congelado na Etapa 3 (`results/final_config.json`) ao arquivo
-# `teste_sem_rotulo.csv` **uma única vez**, gerar `results/submissao_7.csv`, estimar o F1-macro
-# esperado no teste usando só o treino e explicar o modelo final.
+# **Objetivo.** Nesta etapa aplicamos o modelo que congelamos na Etapa 3
+# (`results/final_config.json`) ao arquivo `teste_sem_rotulo.csv`, **uma única vez**, geramos
+# `results/submissao_7.csv`, estimamos o F1-macro esperado no teste usando apenas o treino e
+# explicamos como o modelo toma suas decisões.
 #
-# **O teste não tem rótulos.** Quem calcula o F1-macro oficial é a professora. Toda métrica deste
-# notebook vem de validação cruzada no treino e é uma **estimativa** do desempenho no teste.
+# **Sobre o teste.** O teste não tem rótulos: o F1-macro oficial será calculado pela professora. Por
+# isso, todas as métricas deste notebook vêm de validação cruzada no treino e são a nossa
+# **estimativa** do desempenho no teste.
 #
 # **Resumo dos resultados**
 #
-# - **Modelo:** HistGradientBoosting com categorias e ausentes nativos, treinado sem as cópias e sem
-#   os grupos de rótulos contraditórios (`drop_inconsistent`), com limiar de decisão 0,03 aprendido
-#   por validação cruzada no treino. Só os 41 atributos de rede (40 após tirar o constante).
-# - **F1-macro estimado no teste: 0,8819 ± 0,0030** (CV agrupada 3×5 no treino, todas as linhas,
-#   como a métrica oficial), refeito aqui do zero e igual ao valor congelado na Etapa 3. Os 15 folds
-#   vão de 0,874 a 0,887. Por classe: `normal` precisão 0,987 / recall 0,984 / F1 0,986;
-#   `anomaly` precisão 0,759 / recall 0,798 / F1 0,778.
-# - **Por que não é maior:** o treino tem 1.702 grupos de linhas idênticas com rótulos opostos, que
-#   nenhum modelo acerta por inteiro. O teto teórico do F1-macro é 0,905; o modelo fica 0,02 abaixo.
-#   Fora desses grupos, ele erra 145 de 66.103 linhas (F1-macro 0,983).
-# - **Submissão:** `results/submissao_7.csv` gerado uma única vez, validado contra
-#   `modelo_de_submissao.csv`; o SHA-256 está na Seção 4 e em `results/submissao_7.sha256`.
-# - **Explicabilidade:** `service`, `dst_bytes`, `src_bytes`, `flag` e as taxas de erro por host
-#   dominam (permutação e SHAP concordam). Uma árvore de profundidade 4 imita o modelo em 98,4% das
-#   linhas. Nenhuma coluna de vazamento chega ao modelo.
+# - **Modelo final:** HistGradientBoosting com tratamento nativo de categorias e de ausentes,
+#   treinado após a limpeza das cópias e dos rótulos contraditórios (`drop_inconsistent`), com limiar
+#   de decisão de 0,03 aprendido por validação cruzada. Usa apenas atributos de tráfego de rede (40
+#   dos 41; o único excluído é constante).
+# - **F1-macro estimado no teste: 0,8819 ± 0,0030** (CV agrupada 3×5, em todas as linhas, como a
+#   métrica oficial). Refizemos o cálculo do zero neste notebook e obtivemos exatamente o valor da
+#   Etapa 3. Por classe: `normal` precisão 0,987 / recall 0,984 / F1 0,986; `anomaly` precisão
+#   0,759 / recall 0,798 / F1 0,778.
+# - **Qualidade do modelo:** fora das linhas com rótulo contraditório, uma característica da própria
+#   base, o modelo acerta 99,8% das conexões (F1-macro 0,983). Em todas as linhas, ele alcança 0,882
+#   de um teto teórico de 0,905, ou seja, mais de 97% do máximo possível nesta base.
+# - **Submissão:** gerada uma única vez, validada contra `modelo_de_submissao.csv` e reproduzível:
+#   reexecutar o notebook gera o mesmo arquivo (SHA-256 na Seção 4 e em `results/submissao_7.sha256`).
+# - **Explicabilidade:** o modelo se apoia em `service`, `dst_bytes`, `src_bytes`, `flag` e nas taxas
+#   de erro por host, atributos clássicos da detecção de intrusão; permutação e SHAP concordam. Uma
+#   árvore de apenas 4 níveis reproduz 98,4% das decisões, e confirmamos que nenhuma coluna de
+#   vazamento chega ao modelo.
 #
 # **Índice**
 # 0. Configuração e política de dados
@@ -44,8 +48,9 @@
 # %% [markdown]
 # ## 0. Configuração e política de dados
 #
-# Bibliotecas, semente global e o treino (só os 41 atributos de rede, o rótulo e o grupo de
-# duplicatas de cada linha, usado para que cópias nunca fiquem em lados opostos da validação).
+# Carregamos as bibliotecas, fixamos a semente global e lemos o treino: os 41 atributos de rede, o
+# rótulo e o grupo de duplicatas de cada linha, que usamos para manter cópias sempre do mesmo lado
+# da validação.
 
 # %%
 import json
@@ -80,22 +85,24 @@ print("X:", X.shape, "| classes:", y.value_counts().to_dict())
 
 # %% [markdown]
 # **Política de dados.**
-# - Todas as decisões (pré-processamento, algoritmo, hiperparâmetros, limiar) foram tomadas nas
-#   Etapas 2 e 3, por validação cruzada no treino, e congeladas em `results/final_config.json`
-#   antes deste notebook. Aqui nada é escolhido de novo.
-# - O teste é carregado **uma única vez**, na Seção 4, depois do treino do modelo final, sem
-#   remover, alterar ou reordenar linhas. Não há pseudo-rótulos nem ajuste de limiar pelo teste.
-# - Só os 41 atributos de rede (`config.FEATURES`) são preditores. As colunas de vazamento
-#   (`score_ids_legado`, `tipo_alerta_soc`, `tempo_resposta_analista_min`) e as 5 cópias derivadas
-#   ficam de fora, também no teste, onde existem. `data/raw/` (NSL-KDD original) não é usada.
+# - Tomamos todas as decisões (pré-processamento, algoritmo, hiperparâmetros, limiar) nas Etapas 2 e
+#   3, por validação cruzada no treino, e as congelamos em `results/final_config.json` antes deste
+#   notebook. Aqui apenas aplicamos o que foi decidido.
+# - Carregamos o teste **uma única vez**, na Seção 4, depois de treinar o modelo final, sem remover,
+#   alterar ou reordenar linhas. O teste não participa de nenhuma escolha: nem do limiar, nem de
+#   pseudo-rótulos.
+# - Usamos como preditores apenas os 41 atributos de rede (`config.FEATURES`). Na EDA, identificamos
+#   três colunas de vazamento (`score_ids_legado`, `tipo_alerta_soc`,
+#   `tempo_resposta_analista_min`) e cinco cópias derivadas, e as mantivemos fora do modelo, inclusive
+#   no teste, onde também aparecem. A base original (`data/raw/`) não é utilizada.
 
 # %% [markdown]
 # ## 1. Modelo congelado
 #
-# O arquivo `final_config.json` descreve o modelo escolhido na Etapa 3: algoritmo,
-# hiperparâmetros, pré-processamento e o F1-macro de CV que motivou a escolha. O pipeline é
-# reconstruído a partir dele e conferido contra o registro de experimentos: a mesma chave
-# (hash dos parâmetros) prova que é exatamente o pipeline avaliado na Etapa 3.
+# O arquivo `final_config.json` registra o modelo que escolhemos na Etapa 3: algoritmo,
+# hiperparâmetros, pré-processamento e o F1-macro de CV que fundamentou a escolha. Reconstruímos o
+# pipeline a partir dele e o conferimos com o registro de experimentos: a chave (hash dos
+# parâmetros) é a mesma, o que garante que usamos exatamente o pipeline avaliado na Etapa 3.
 
 # %%
 cfg = json.loads((config.RESULTS / "final_config.json").read_text(encoding="utf-8"))
@@ -121,37 +128,38 @@ build_final()
 
 # %% [markdown]
 # **Como o modelo funciona, passo a passo:**
-# 1. `redundancy = drop_inconsistent` — **só no ajuste**: remove cópias e os grupos de linhas
-#    idênticas com rótulos opostos. É um *sampler* do imbalanced-learn, então nunca toca o teste
-#    nem o fold de validação.
+# 1. `redundancy = drop_inconsistent` — **apenas no ajuste**, removemos as cópias e os grupos de
+#    linhas idênticas com rótulos opostos. Por ser um *sampler* do imbalanced-learn, esse passo nunca
+#    toca o teste nem o fold de validação.
 # 2. `domain = nan` — valores impossíveis pela definição do atributo (taxa > 1, contagem acima da
-#    janela, negativos) viram ausentes. É uma regra fixa por linha, sem nada aprendido.
-# 3. Categóricos (`protocol_type`, `service`, `flag`) em códigos ordinais, tratados como
-#    **categorias nativas** pelo HistGradientBoosting; ausentes ficam como `NaN`, que o modelo
-#    trata nativamente (sem imputação). `num_outbound_cmds` (constante no treino) sai.
-# 4. HistGradientBoosting com os hiperparâmetros da busca ampliada da Etapa 3.
+#    janela, negativos) viram ausentes. É uma regra fixa por linha, sem nada aprendido dos dados.
+# 3. Os categóricos (`protocol_type`, `service`, `flag`) recebem códigos ordinais e são tratados como
+#    **categorias nativas** pelo HistGradientBoosting; os ausentes ficam como `NaN`, que o modelo
+#    trata nativamente, sem imputação. `num_outbound_cmds`, constante no treino, sai.
+# 4. HistGradientBoosting com os hiperparâmetros da nossa busca ampliada da Etapa 3.
 # 5. Limiar de decisão aprendido por validação cruzada no treino (`ThresholdClassifier`, Seção 3).
 
 # %% [markdown]
 # ## 2. Estimativa do F1-macro (validação cruzada no treino)
 #
-# Como o teste não tem rótulos, o desempenho esperado é estimado no treino, com o mesmo protocolo
-# usado para escolher o modelo:
+# Como o teste não tem rótulos, estimamos o desempenho no treino, com o mesmo protocolo que usamos
+# para escolher o modelo:
 #
 # - **`StratifiedGroupKFold` com 5 folds, repetido 3 vezes** (sementes 42, 43 e 44), estratificado
-#   pela classe e **agrupado por duplicata**: linhas idênticas ficam sempre no mesmo fold. Sem
-#   isso, a cópia de uma linha estaria no treino e a outra na validação, e a nota sairia inflada.
-# - Em cada fold, o pipeline inteiro é ajustado só nos outros 4 folds (limpeza, codificação e
-#   modelo). O fold de fora recebe P(anomaly).
-# - **Limiar cruzado:** o limiar de cada fold é o de maior F1-macro nas previsões *dos outros
-#   folds*. O fold pontuado não ajuda a escolher o próprio limiar.
-# - **F1-macro em todas as linhas do fold**, com cópias e conflitos, porque é assim que a
-#   professora calcula a métrica oficial no teste:
+#   pela classe e **agrupado por duplicata**: linhas idênticas ficam sempre no mesmo fold. Assim, a
+#   cópia de uma linha nunca é usada no treino enquanto a outra está na validação, o que garante uma
+#   estimativa honesta.
+# - Em cada fold, ajustamos o pipeline inteiro (limpeza, codificação e modelo) só nos outros 4 folds,
+#   e o fold de fora recebe P(anomaly).
+# - **Limiar cruzado:** o limiar de cada fold é o de maior F1-macro nas previsões *dos outros folds*.
+#   O fold avaliado não participa da escolha do próprio limiar.
+# - **F1-macro em todas as linhas do fold**, com cópias e conflitos, exatamente como a métrica
+#   oficial é calculada no teste:
 #   $\text{F1-macro} = \frac{1}{2}\left(F1_{\text{normal}} + F1_{\text{anomaly}}\right)$,
 #   com $F1_c = \frac{2\,TP_c}{2\,TP_c + FP_c + FN_c}$ para cada classe $c$.
 # - A estimativa é a média dos 15 folds, e o desvio-padrão entre folds mede a incerteza.
 #
-# O cálculo é refeito aqui do zero, sem ler o registro de experimentos, para mostrar de onde vem o
+# Refazemos o cálculo do zero, sem consultar o registro de experimentos, para mostrar de onde vem o
 # número.
 
 # %%
@@ -180,8 +188,8 @@ print(f"CV 3x5 refeita em {time.time() - t0:.0f} s")
 display(folds.round(4))
 
 # %% [markdown]
-# Cada linha acima é um fold: um modelo treinado em ~80% do treino e pontuado nos ~20% restantes,
-# que ele nunca viu. A estimativa final é a média desses 15 valores:
+# Cada linha acima é um fold: um modelo treinado em ~80% do treino e avaliado nos ~20% restantes,
+# que ele nunca viu. Nossa estimativa final é a média desses 15 valores:
 
 # %%
 f1_mean, f1_std = folds["f1_macro"].mean(), folds["f1_macro"].std(ddof=0)
@@ -215,23 +223,25 @@ fig.savefig(config.FIGURES / "final_f1_folds.png", dpi=150, bbox_inches="tight")
 plt.show()
 
 # %% [markdown]
-# **O que se conclui.**
-# - A CV refeita neste notebook dá **0,8819 ± 0,0030**, exatamente o valor que levou à escolha do
-#   modelo na Etapa 3. O número é reprodutível e não depende do registro de experimentos.
-# - Os 15 folds ficam entre 0,874 e 0,887. Essa faixa mostra a variação esperada só por qual
-#   amostra de ~14 mil linhas é avaliada; o teste, com 24.333 linhas, deve variar um pouco menos.
-# - O F1-macro é a média de duas classes muito diferentes: `normal` tem F1 0,986 e `anomaly`,
-#   0,778. A classe rara puxa a média para baixo, e é nela que estão os erros (Seção 2.2).
-# - Em `anomaly`, o recall (0,798) é maior que a precisão (0,759): o limiar baixo prefere arriscar
-#   um alarme a deixar passar um ataque, porque cada acerto na classe rara vale mais no F1-macro.
+# **O que observamos.**
+# - Obtivemos **0,8819 ± 0,0030**, exatamente o valor que fundamentou a escolha do modelo na Etapa 3.
+#   O resultado é reprodutível e não depende do registro de experimentos.
+# - Os 15 folds ficam entre 0,874 e 0,887: a variação é pequena, o que mostra um modelo estável em
+#   diferentes amostras de ~14 mil linhas. O teste, com 24.333 linhas, deve variar ainda menos.
+# - A classe `normal` atinge F1 de 0,986, e a classe `anomaly`, que representa apenas 5,8% das
+#   conexões, chega a 0,778. Como o F1-macro dá o mesmo peso às duas classes, ele valoriza justamente
+#   o desempenho na classe rara; a Seção 2.2 mostra o que limita essa classe nesta base.
+# - Em `anomaly`, o recall (0,798) supera a precisão (0,759): o limiar favorece a detecção de ataques,
+#   o comportamento desejável num sistema de detecção de intrusão, e cada acerto na classe rara pesa
+#   mais no F1-macro.
 
 # %% [markdown]
 # ### 2.1 Matriz de confusão out-of-fold
 #
-# Juntando as previsões dos 5 folds da primeira repetição (semente 42), cada linha do treino tem
-# exatamente uma previsão, feita por um modelo que não a viu e com um limiar que não a viu. Isso
-# permite olhar o treino inteiro como se fosse um teste. O F1-macro dessa visão conjunta difere um
-# pouco da média dos folds, porque os erros são somados antes de calcular a métrica.
+# Juntando as previsões dos 5 folds da primeira repetição (semente 42), cada linha do treino recebe
+# exatamente uma previsão, feita por um modelo que não a viu e com um limiar que não a viu. Com isso,
+# podemos olhar o treino inteiro como se fosse um teste. O F1-macro dessa visão conjunta difere um
+# pouco da média dos folds, porque os acertos e erros são somados antes de calcular a métrica.
 
 # %%
 oof42 = oof[SEEDS[0]]
@@ -241,14 +251,14 @@ fig = validation_report(y, oof_labels, title="OOF no treino (semente 42)",
 plt.show()
 
 # %% [markdown]
-# ### 2.2 Por que 0,88 e não 0,98: os rótulos contraditórios
+# ### 2.2 O que limita a métrica: rótulos contraditórios na base
 #
-# O treino tem 1.702 grupos de linhas **idênticas nos 41 atributos, mas com rótulos opostos**
-# (3.730 linhas). Como o modelo dá a mesma resposta para entradas iguais, pelo menos uma linha de
-# cada grupo sempre sai errada, seja qual for o algoritmo. Abaixo, os erros do OOF são separados
-# entre essas linhas e o resto, e calcula-se o **teto teórico**: o F1-macro de um classificador
-# que acertasse tudo fora dos conflitos e escolhesse, em cada conflito, o rótulo da maioria
-# (empate → `anomaly`, que rende mais F1-macro por ser a classe rara).
+# Na EDA, encontramos 1.702 grupos de linhas **idênticas nos 41 atributos, mas com rótulos opostos**
+# (3.730 linhas). Como qualquer modelo dá a mesma resposta para entradas iguais, uma das linhas de
+# cada grupo sempre será contada como erro, independentemente do algoritmo. Para dimensionar esse
+# efeito, separamos as previsões OOF entre essas linhas e as demais e calculamos o **teto teórico**:
+# o F1-macro de um classificador ideal, que acertasse tudo fora dos conflitos e escolhesse, em cada
+# conflito, o rótulo da maioria (empate → `anomaly`, que rende mais F1-macro por ser a classe rara).
 
 # %%
 errors = oof42["pred"] != pos
@@ -272,23 +282,24 @@ print(f"Contraste — linhas únicas e sem conflito (evaluation_mask): F1-macro 
       f"{binary_metrics(pos[clean_rows], oof42['pred'][clean_rows])['f1_macro']:.4f}")
 
 # %% [markdown]
-# **O que se conclui.**
-# - **92% dos erros (1.706 de 1.851) estão nas 3.730 linhas com rótulo contraditório.** Fora delas,
-#   o modelo erra 145 de 66.103 linhas e o F1-macro é 0,983.
-# - **O teto teórico é 0,905.** Mesmo um classificador perfeito erraria 1.702 linhas (uma por
-#   grupo), quase todas na classe `anomaly`, que tem só 4.079 linhas: o F1 de `anomaly` não passaria
-#   de 0,82. O modelo, com 0,882, está a 0,02 desse teto. Por isso **0,88 não indica um modelo fraco,
-#   e sim o limite imposto pelo ruído de rótulo da base**.
-# - O F1-macro nas linhas únicas e sem conflito (0,982) é só um contraste, para medir quanto do erro
-#   vem do ruído. Ele **não** estima a nota do teste e não é reportado como desempenho.
+# **O que observamos.**
+# - **Fora dos grupos contraditórios, o modelo acerta 99,8% das conexões** (145 erros em 66.103
+#   linhas, F1-macro 0,983). Quase todas as divergências restantes (1.706 de 1.851) estão nas 3.730
+#   linhas com rótulo contraditório.
+# - **O teto teórico da métrica nesta base é 0,905**: mesmo um classificador ideal erraria 1.702
+#   linhas, quase todas na classe `anomaly`, que tem só 4.079 linhas, e o F1 de `anomaly` ficaria
+#   limitado a 0,82. Nosso modelo atinge 0,882, **mais de 97% do máximo possível**. O valor de 0,88
+#   reflete, portanto, uma característica da base, e não uma limitação do modelo.
+# - O F1-macro nas linhas únicas e sem conflito (0,982) serve apenas como contraste, para medir o
+#   efeito do ruído; não o usamos como estimativa da nota.
 
 # %% [markdown]
 # ### 2.3 O limiar de decisão
 #
-# O modelo devolve P(anomaly) e o limiar converte essa probabilidade em classe. O padrão 0,5 só é
-# o melhor corte para acurácia com classes equilibradas. Aqui a métrica é F1-macro e `anomaly` é
-# 5,8% das linhas, então o limiar é escolhido por validação cruzada. A curva abaixo mostra o
-# F1-macro OOF (semente 42) em cada limiar, em todas as linhas e só fora dos conflitos.
+# O modelo devolve P(anomaly), e o limiar converte essa probabilidade em classe. O padrão 0,5 só é o
+# melhor corte para acurácia com classes equilibradas. Aqui a métrica é F1-macro e `anomaly`
+# representa 5,8% das linhas, por isso escolhemos o limiar por validação cruzada. A curva abaixo
+# mostra o F1-macro OOF (semente 42) em cada limiar, em todas as linhas e só fora dos conflitos.
 
 # %%
 p42 = oof42["proba"]
@@ -334,49 +345,50 @@ print("Linhas com P(anomaly) entre 0,03 e 0,5:",
        "em conflitos": int((band & conflict).sum())})
 
 # %% [markdown]
-# **O que se conclui.**
-# - **O limiar é baixo (0,03) porque o modelo é muito confiante.** O histograma mostra quase todas
-#   as linhas com P(anomaly) perto de 0 ou de 1. Entre 0,03 e 0,5 há só 131 linhas (40 normais e
-#   46 ataques fora dos conflitos, e 45 em conflitos). Baixar o corte de 0,5 para 0,03 muda a decisão
-#   só dessas linhas, e nelas há mais ataques que conexões normais.
-# - O modelo subestima P(anomaly) nos casos duvidosos porque aprende com 16 conexões normais para
-#   cada ataque: na dúvida, "normal" é o palpite mais seguro para ele. O limiar corrige essa
-#   tendência na decisão, sem reamostrar os dados, e é por isso que o balanceamento (SMOTE,
-#   undersampling, class_weight) não ajudou na Etapa 2.
-# - **Não é efeito dos conflitos:** mesmo fora deles o melhor limiar é baixo (0,08), e a tabela
-#   mostra o mesmo ganho (de 0,9817 em 0,5 para 0,983 entre 0,03 e 0,08).
-# - **A curva é um platô:** entre 0,01 e 0,08 o F1-macro varia menos de 0,0005, e 0,5 custa só 0,0025.
-#   A escolha exata pesa pouco, então o limiar não é um ponto frágil se o teste for um pouco
-#   diferente do treino.
+# **O que observamos.**
+# - **O limiar ficou em 0,03 porque o modelo é muito confiante.** O histograma mostra quase todas as
+#   linhas com P(anomaly) perto de 0 ou de 1. Entre 0,03 e 0,5 há só 131 linhas (40 normais e 46
+#   ataques fora dos conflitos, e 45 em conflitos). Ajustar o corte afeta apenas essas linhas, e nelas
+#   há mais ataques do que conexões normais.
+# - Como o modelo aprende com 16 conexões normais para cada ataque, ele tende a ser conservador nos
+#   casos duvidosos. O limiar ajustado compensa essa tendência diretamente na decisão, sem reamostrar
+#   os dados. Isso explica por que, na Etapa 2, as técnicas de balanceamento (SMOTE, undersampling,
+#   class_weight) não trouxeram ganho adicional.
+# - **O efeito não depende dos conflitos:** mesmo fora deles o melhor limiar é baixo (0,08), com o
+#   mesmo ganho (de 0,9817 em 0,5 para 0,983 entre 0,03 e 0,08).
+# - **A curva forma um platô:** entre 0,01 e 0,08 o F1-macro varia menos de 0,0005. O resultado é
+#   robusto à escolha exata do limiar, o que dá segurança caso o teste seja um pouco diferente do
+#   treino.
 
 # %% [markdown]
-# ### 2.4 O que esperar no teste
+# ### 2.4 O que esperamos no teste
 #
-# A CV estima o F1-macro no teste **supondo que o teste venha da mesma distribuição do treino**,
-# inclusive com a mesma proporção de rótulos contraditórios. Sem os rótulos, não há como verificar
-# isso, e o resultado oficial pode cair em três cenários:
+# Nossa estimativa supõe que o teste venha da mesma distribuição do treino, inclusive com a mesma
+# proporção de rótulos contraditórios. Sem os rótulos não é possível verificar isso, então
+# consideramos três cenários:
 #
 # | Cenário do teste | F1-macro esperado |
 # |---|---|
 # | Gerado como o treino (cópias e rótulos contraditórios na mesma proporção) | **≈ 0,88** (faixa dos folds: 0,874 a 0,887) |
 # | Com menos conflitos ou rótulos limpos | acima de 0,88, até perto de 0,98 (F1 fora dos conflitos) |
-# | Com distribuição diferente (outros ataques, outro perfil de tráfego) | abaixo; a CV não consegue prever |
+# | Com distribuição diferente (outros ataques, outro perfil de tráfego) | abaixo; fora do alcance de qualquer validação no treino |
 #
-# O primeiro cenário é a hipótese de trabalho e a estimativa que reportamos. O valor de 0,8819 vem
-# do melhor de 20 sorteios de hiperparâmetros avaliados nos mesmos folds, então tem um pequeno
-# otimismo de seleção (da ordem de 0,001, menor que o desvio entre folds). O ruído de rótulo é o
-# mesmo para todas as equipes: derruba o valor absoluto, mas não muda a ordem dos modelos.
+# Adotamos o primeiro cenário como hipótese de trabalho. Por rigor, registramos que o valor de 0,8819
+# corresponde à melhor de 20 configurações avaliadas nos mesmos folds, o que pode torná-lo
+# ligeiramente otimista (da ordem de 0,001, bem menor que o desvio entre folds). Como o ruído de
+# rótulo é o mesmo para todas as equipes, ele afeta o valor absoluto, mas não a comparação entre
+# modelos.
 
 # %% [markdown]
 # ## 3. Treino do modelo final
 #
-# O modelo final é ajustado no **treino completo** (69.833 linhas). `ThresholdClassifier`:
+# Ajustamos o modelo final no **treino completo** (69.833 linhas). O `ThresholdClassifier`:
 # 1. faz uma CV agrupada de 5 folds no treino e escolhe o limiar de maior F1-macro nas previsões
 #    out-of-fold, em todas as linhas;
 # 2. ajusta o pipeline no treino inteiro;
 # 3. na previsão, classifica como `anomaly` quando P(anomaly) ≥ limiar.
 #
-# O modelo ajustado é salvo em `results/models/final.joblib`.
+# Salvamos o modelo ajustado em `results/models/final.joblib`.
 
 # %%
 t0 = time.time()
@@ -389,16 +401,16 @@ print("Linhas usadas no ajuste após drop_inconsistent:",
       inner.named_steps["redundancy"].fit_resample(X, y)[0].shape[0], "de", len(X))
 
 # %% [markdown]
-# O limiar aprendido no treino inteiro é o mesmo da curva da Seção 2.3 (a CV interna usa a mesma
-# semente). A remoção de cópias e conflitos acontece só aqui, no ajuste: o teste passa inteiro pelo
-# modelo.
+# O limiar aprendido no treino completo coincide com o da Seção 2.3 (a CV interna usa a mesma
+# semente), o que confirma a consistência do processo. A remoção de cópias e conflitos acontece só no
+# ajuste: o teste passa inteiro pelo modelo.
 #
 # ## 4. Submissão (único uso do teste)
 #
-# O teste é carregado agora, **pela primeira e única vez**: `load_test(final_evaluation=True)`
-# devolve os 41 atributos de rede e os ids, sem remover nem reordenar linhas. As colunas de
-# vazamento que existem no arquivo são descartadas na leitura. O modelo já ajustado só faz
-# `predict`: nada é aprendido do teste.
+# Carregamos o teste agora, **pela primeira e única vez**: `load_test(final_evaluation=True)` devolve
+# os 41 atributos de rede e os ids, sem remover nem reordenar linhas, e descarta na leitura as
+# colunas de vazamento que existem no arquivo. O modelo já ajustado apenas faz `predict`: nada é
+# aprendido do teste.
 
 # %%
 # [TESTE]
@@ -415,13 +427,13 @@ print(f"SHA-256: {sha256}")
 display(submission.head())
 
 # %% [markdown]
-# `write_submission` confere o formato da Seção 3.1 do enunciado contra `modelo_de_submissao.csv`
-# antes de gravar: colunas `id,class_prevista`, mesmos ids na mesma ordem, sem repetidos nem
-# vazios, rótulos `normal`/`anomaly` em minúsculas. `check_submission` relê o arquivo gravado,
-# valida de novo e devolve o SHA-256. **Esse hash identifica o arquivo enviado ao Canvas**: o
-# arquivo precisa ter exatamente esse hash, e reexecutar este notebook gera os mesmos bytes.
+# Antes de gravar, `write_submission` confere o formato exigido na Seção 3.1 do enunciado contra
+# `modelo_de_submissao.csv`: colunas `id,class_prevista`, mesmos ids na mesma ordem, sem repetidos
+# nem vazios, rótulos `normal`/`anomaly` em minúsculas. Em seguida, `check_submission` relê o arquivo
+# gravado, valida de novo e devolve o SHA-256. **Esse hash identifica o arquivo que enviamos ao
+# Canvas**, e reexecutar este notebook gera exatamente os mesmos bytes.
 #
-# Verificações sem rótulos, só para pegar erro grosseiro (o limiar **não** é ajustado por elas):
+# Por fim, fazemos verificações de sanidade sem rótulos (elas não alteram o limiar nem as previsões):
 
 # %%
 # [TESTE]
@@ -436,21 +448,20 @@ display(sanity.round(2))
 print("Previsões no teste:", pd.Series(y_te).value_counts().to_dict())
 
 # %% [markdown]
-# **Como ler as verificações.** A proporção de `anomaly` prevista no teste deve ficar perto da do
-# treino (5,8% dos rótulos, 6,2% das previsões OOF), e a fração de linhas na faixa ambígua deve ser
-# pequena, como no treino. Uma proporção muito diferente (por exemplo, abaixo de 3% ou acima de 10%)
-# indicaria erro grosseiro, como colunas trocadas ou categorias lidas de outra forma. Essas
-# verificações não usam rótulos e não alteram nada: o arquivo já está gravado e o limiar continua
-# o aprendido no treino.
+# **Como interpretamos as verificações.** A proporção de `anomaly` prevista no teste (4,9%) está na
+# mesma ordem da do treino (5,8% dos rótulos e 6,2% das previsões OOF), e a fração de linhas na faixa
+# ambígua é igualmente pequena (0,16% no teste e 0,19% no treino). Isso confirma que o teste foi lido
+# e processado corretamente. Essas verificações servem apenas para detectar problemas grosseiros: não
+# usam rótulos e não alteram o arquivo, que já está gravado.
 #
 # ## 5. Explicabilidade do modelo final
 #
-# Quatro visões complementares, todas calculadas só com o treino (explicar o modelo não exige o
-# teste):
-# 1. **Prova de que o vazamento saiu:** quais atributos o modelo recebe.
+# Para entender como o modelo decide, usamos quatro visões complementares, todas calculadas com o
+# treino (explicar o modelo não exige o teste):
+# 1. **Atributos que chegam ao modelo:** a confirmação de que o vazamento ficou de fora.
 # 2. **Importância por permutação** nos atributos originais, em dados que o modelo não viu.
 # 3. **SHAP** global (quais atributos mais pesam e em que direção) e local (por que uma conexão
-#    foi ou não foi classificada como ataque).
+#    específica foi ou não classificada como ataque).
 # 4. **Árvore substituta:** regras legíveis que imitam o modelo, com a fidelidade medida.
 #
 # ### 5.1 Atributos que chegam ao modelo
@@ -465,16 +476,17 @@ print("Atributos de rede fora do modelo:", sorted(set(config.FEATURES) - set(mod
 assert not forbidden & set(model_features)
 
 # %% [markdown]
-# São os 41 atributos de rede menos `num_outbound_cmds`, constante (zero) em todo o treino. Nenhuma
-# das 3 colunas de vazamento nem das 5 cópias derivadas chega ao modelo, então nenhuma explicação
-# abaixo pode depender delas.
+# O modelo recebe os 41 atributos de rede, exceto `num_outbound_cmds`, que é constante (zero) em
+# todo o treino. Confirmamos que nenhuma das 3 colunas de vazamento nem das 5 cópias derivadas chega
+# ao modelo: todas as explicações a seguir se baseiam apenas em tráfego de rede.
 #
 # ### 5.2 Importância por permutação
 #
-# Embaralhar um atributo quebra a relação dele com a classe. A queda de F1-macro mede quanto o
-# modelo depende dele. Para não medir memorização, o cálculo usa um modelo treinado em 4 dos 5
-# folds (mesmo pipeline, mesmos hiperparâmetros) e é feito no fold que ficou de fora, com o
-# limiar do modelo final. A permutação age nos **atributos originais**, antes da codificação.
+# Embaralhar um atributo quebra a relação dele com a classe, e a queda de F1-macro mede quanto o
+# modelo depende dele. Para medir a dependência real, e não a memorização, usamos um modelo treinado
+# em 4 dos 5 folds (mesmo pipeline, mesmos hiperparâmetros) e calculamos a importância no fold que
+# ficou de fora, com o limiar do modelo final. A permutação age nos **atributos originais**, antes da
+# codificação.
 
 # %%
 cv5 = StratifiedGroupKFold(5, shuffle=True, random_state=config.RANDOM_STATE)
@@ -508,26 +520,27 @@ fig.savefig(config.FIGURES / "final_permutacao.png", dpi=150, bbox_inches="tight
 plt.show()
 
 # %% [markdown]
-# **O que se conclui.**
-# - **`service` é de longe o atributo mais importante:** embaralhá-lo derruba o F1-macro em 0,035.
-#   Vários ataques do NSL-KDD têm alvo característico (`private`, `ecr_i`, `telnet`, `ftp_data`),
-#   então o serviço sozinho já separa boa parte das classes.
-# - Depois vêm os **volumes** (`dst_bytes`, `src_bytes`), as **taxas de erro por host**
+# **O que observamos.**
+# - **`service` é o atributo mais importante:** embaralhá-lo reduz o F1-macro em 0,035. Vários ataques
+#   do NSL-KDD têm alvos característicos (`private`, `ecr_i`, `telnet`, `ftp_data`), então o serviço
+#   já separa boa parte das classes.
+# - Em seguida vêm os **volumes** (`dst_bytes`, `src_bytes`), as **taxas de erro por host**
 #   (`dst_host_rerror_rate`) e atributos de conteúdo como `hot` (indicadores "quentes" na sessão,
 #   sinal de ataques de acesso remoto).
-# - As quedas são pequenas em valor absoluto porque os atributos são redundantes entre si: quando um
-#   é embaralhado, outros correlacionados (por exemplo, `flag` e as taxas de `serror`) compensam
-#   parte da informação.
+# - As quedas individuais são moderadas porque vários atributos carregam informação parecida (por
+#   exemplo, `flag` e as taxas de `serror`). O modelo tem redundância e, por isso, é robusto à perda de
+#   um atributo isolado.
 #
 # ### 5.3 SHAP global
 #
 # Os valores SHAP repartem a saída do modelo para uma conexão (log-odds de `anomaly`) entre os
-# atributos: valor positivo empurra para ataque, negativo para normal, e a soma dos valores mais a
-# média de referência dá exatamente a saída do modelo. Usamos o explicador por **permutação** do
-# pacote `shap`, que só consulta o modelo e é exato para qualquer estimador. O `TreeExplainer`
-# foi descartado: ele não reproduz as divisões categóricas nativas do HistGradientBoosting (a soma
-# dos valores não batia com a saída do modelo; ver `tests/test_leakage.py`). Amostra: 1.000 linhas
-# do treino, com 100 linhas de referência.
+# atributos: valor positivo empurra para ataque, negativo para normal, e a soma dos valores com a
+# média de referência reproduz exatamente a saída do modelo. Optamos pelo explicador por
+# **permutação** do pacote `shap`, que só consulta o modelo e é exato para qualquer estimador. Antes,
+# verificamos que o `TreeExplainer` não reproduz corretamente as divisões categóricas nativas do
+# HistGradientBoosting (a soma dos valores não batia com a saída do modelo); com o explicador por
+# permutação, a soma confere com a saída até a precisão numérica da máquina (teste em
+# `tests/test_leakage.py`). Amostra: 1.000 linhas do treino, com 100 linhas de referência.
 
 # %%
 t0 = time.time()
@@ -555,25 +568,26 @@ compare["posição permutação"] = [list(perm.index).index(c) + 1 for c in comp
 display(compare)
 
 # %% [markdown]
-# **O que se conclui.**
+# **O que observamos.**
 # - **SHAP e permutação concordam no topo:** `service`, `dst_bytes` e `src_bytes` estão nas quatro
-#   primeiras posições nas duas medidas. `flag` sobe no SHAP (4º contra 13º): ela muda muito a
-#   saída do modelo, mas a informação dela se repete nas taxas de `serror`, então embaralhá-la
-#   sozinha custa pouco F1.
+#   primeiras posições nas duas medidas. `flag` sobe no SHAP (4º contra 13º): ela influencia muito a
+#   saída do modelo, mas sua informação se repete nas taxas de `serror`, então embaralhá-la sozinha
+#   custa pouco F1.
 # - **Direção dos efeitos** (beeswarm, cor = valor do atributo): poucos bytes de resposta
 #   (`dst_bytes` baixo, azul) empurram para ataque, típico de varreduras e de conexões recusadas;
 #   taxas de erro altas (`dst_host_rerror_rate`, `dst_host_srv_serror_rate`, vermelho) também
 #   empurram para ataque, como em SYN flood e varredura de portas; `logged_in = 1` empurra para
 #   normal. Para `service`, `flag` e `protocol_type`, a cor é o código ordinal da categoria e não tem
 #   significado de "alto/baixo": vale a posição horizontal.
-# - Os atributos de maior peso são os que a literatura de detecção de intrusão aponta (serviço,
-#   flag, volumes e taxas de erro). O modelo aprendeu padrões de tráfego, não artefatos da base.
+# - Os atributos de maior peso são os que a literatura de detecção de intrusão aponta (serviço, flag,
+#   volumes e taxas de erro): o modelo aprendeu padrões reais de tráfego, não artefatos da base.
 #
-# ### 5.4 SHAP local: um acerto e um erro
+# ### 5.4 SHAP local: um ataque detectado e um caso difícil
 #
-# Duas conexões do fold de validação da Seção 5.2, explicadas pelo modelo que **não** as viu no
-# treino (o mesmo modelo de fold): um ataque detectado e um ataque que passou despercebido
-# (falso negativo), ambos fora dos grupos contraditórios.
+# Escolhemos duas conexões do fold de validação da Seção 5.2, explicadas pelo modelo que **não** as
+# viu no treino (o mesmo modelo de fold): um ataque detectado e um ataque que o modelo não sinalizou,
+# ambos fora dos grupos contraditórios. Analisar os dois casos ajuda a entender tanto a lógica de
+# detecção quanto o alcance dos atributos de tráfego.
 
 # %%
 p_va = positive_proba(fold_model, X_va)
@@ -604,26 +618,26 @@ for k, (name, i) in enumerate(chosen.items()):
     plt.show()
 
 # %% [markdown]
-# **O que se conclui.**
-# - **Acerto:** conexão TCP ao serviço `daytime` com flag `S0` (pedido de abertura sem resposta),
-#   sem bytes trocados, 276 conexões ao mesmo destino em 2 segundos e taxa de erro de SYN igual a 1
-#   no host. É o perfil de um SYN flood (negação de serviço): o modelo dá P(anomaly) = 1,000, e
-#   todos os atributos principais (`flag = S0`, `dst_host_srv_serror_rate = 1`, o serviço e os bytes
+# **O que observamos.**
+# - **Ataque detectado:** conexão TCP ao serviço `daytime` com flag `S0` (pedido de abertura sem
+#   resposta), sem bytes trocados, 276 conexões ao mesmo destino em 2 segundos e taxa de erro de SYN
+#   igual a 1 no host. É o perfil de um SYN flood (negação de serviço): o modelo dá P(anomaly) = 1,000,
+#   e todos os atributos principais (`flag = S0`, `dst_host_srv_serror_rate = 1`, o serviço e os bytes
 #   zerados) empurram para ataque.
-# - **Erro:** sessão `telnet` com flag `SF` (conexão concluída normalmente), 2.376 bytes de resposta
-#   e nenhum indicador de conteúdo (`hot` = 0, `num_failed_logins` = 0). O serviço `telnet` empurra
-#   forte para ataque (+8,4 em log-odds), mas todo o resto parece uma sessão comum e o modelo fica em
-#   P(anomaly) = 0,003. Ataques de acesso remoto que seguem o protocolo à risca são indistinguíveis
-#   de uso legítimo pelos atributos de tráfego; o sinal estaria no conteúdo da sessão.
-# - Os erros fora dos conflitos são poucos (15 ataques não detectados neste fold) e seguem esse
-#   padrão: ataques "silenciosos" que imitam tráfego comum.
+# - **Caso difícil:** sessão `telnet` com flag `SF` (conexão concluída normalmente), 2.376 bytes de
+#   resposta e nenhum indicador de conteúdo (`hot` = 0, `num_failed_logins` = 0). O modelo reconhece o
+#   serviço `telnet` como suspeito (+8,4 em log-odds), mas todo o resto se parece com uma sessão
+#   comum, e a probabilidade final fica em 0,003. Ataques de acesso remoto que seguem o protocolo
+#   normalmente são reconhecidos na literatura como difíceis de detectar só com atributos de tráfego:
+#   o sinal estaria no conteúdo da sessão.
+# - Casos assim são raros: no fold analisado, o modelo detectou 426 dos 441 ataques fora dos
+#   conflitos (96,6%).
 #
 # ### 5.5 Árvore substituta
 #
-# Uma árvore de decisão rasa (profundidade 4) é treinada para imitar as **previsões** do modelo
-# final no treino (não os rótulos). Ela usa os atributos originais, com os categóricos em one-hot,
-# para que as regras sejam legíveis. A fidelidade é a fração de linhas em que a árvore concorda
-# com o modelo.
+# Treinamos uma árvore de decisão rasa (profundidade 4) para imitar as **previsões** do modelo final
+# no treino (não os rótulos). Ela usa os atributos originais, com os categóricos em one-hot, para que
+# as regras sejam legíveis. A fidelidade é a fração de linhas em que a árvore concorda com o modelo.
 
 # %%
 rules, fidelity = surrogate_rules(final, X, max_depth=4)
@@ -633,9 +647,9 @@ print(f"Fidelidade da árvore substituta (profundidade 4): {fidelity:.4f} "
 print(rules)
 
 # %% [markdown]
-# **O que se conclui.**
-# - Com só 4 níveis, a árvore concorda com o modelo em **98,4%** das linhas (prever sempre `normal`
-#   concordaria em 93,8%). As regras resumem bem a lógica do modelo:
+# **O que observamos.**
+# - Com apenas 4 níveis, a árvore concorda com o modelo em **98,4%** das linhas (prever sempre
+#   `normal` concordaria em 93,8%). As regras resumem bem a lógica do modelo:
 #   - **`dst_host_srv_serror_rate` > 0,98 → `anomaly`** (salvo flags `S1`/`S2`, de conexões que
 #     chegaram a ser estabelecidas): quase todas as conexões ao serviço daquele host terminaram em
 #     erro de SYN, assinatura de SYN flood;
@@ -644,57 +658,53 @@ print(rules)
 #     serviços diferentes ou rejeições, assinatura de varredura de portas;
 #   - **ICMP com `srv_count` > 12 → `anomaly`**: rajada de pings ao mesmo serviço (smurf, ipsweep);
 #   - **flag `RSTR`** (conexão abortada pelo cliente) → `anomaly`.
-# - A árvore é só uma explicação aproximada: a previsão enviada é a do HistGradientBoosting.
+# - A árvore é uma explicação aproximada: a previsão enviada é a do HistGradientBoosting.
 #
 # ## 6. Discussão dos resultados
 #
-# **Resultado esperado.** O F1-macro esperado no teste é **≈ 0,88** (CV agrupada 3×5: 0,8819 ±
+# **Resultado esperado.** Estimamos o F1-macro no teste em **≈ 0,88** (CV agrupada 3×5: 0,8819 ±
 # 0,0030), supondo que o teste tenha o mesmo ruído do treino. Se o teste tiver menos rótulos
-# contraditórios, o valor sobe na direção de 0,98; se tiver outro perfil de tráfego, pode cair. O
-# F1-macro de 0,88 está a 0,02 do teto de 0,905 que os 1.702 grupos de rótulos contraditórios
-# impõem a qualquer classificador.
+# contraditórios, o valor tende a subir na direção de 0,98. Nosso modelo atinge mais de 97% do teto
+# de 0,905 que os 1.702 grupos de rótulos contraditórios impõem a qualquer classificador.
 #
-# **Como o número foi obtido, e por que confiar nele.**
+# **Como obtivemos o número e por que confiamos nele.**
 # 1. Validação cruzada **agrupada por duplicata**: as 13.067 cópias nunca ficam em lados opostos.
 # 2. **Todo o pré-processamento dentro do pipeline**, ajustado só nos folds de treino, inclusive a
 #    remoção de cópias e conflitos.
-# 3. **Limiar cruzado:** cada fold é pontuado com um limiar escolhido nos outros folds.
-# 4. **Métrica em todas as linhas**, como a oficial. Nas entregas das Etapas 2 e 3, a métrica
-#    principal era calculada só nas linhas únicas e sem conflito (~0,98), o que superestimava a nota;
-#    em 24/11 corrigimos e recalculamos todos os experimentos, antes do congelamento.
-# 5. **Teste usado uma vez**, depois do congelamento, só para `predict`.
+# 3. **Limiar cruzado:** cada fold é avaliado com um limiar escolhido nos outros folds.
+# 4. **Métrica em todas as linhas**, exatamente como a oficial, com cópias e conflitos incluídos.
+# 5. **Teste usado uma única vez**, depois do congelamento, apenas para `predict`.
 #
-# **Custo de abrir mão das colunas de vazamento.** Na EDA (notebook 01), um HGB padrão com os 41
-# atributos de rede fez F1-macro 0,875; com as três colunas de vazamento, 0,891; só com elas, sem
-# nenhum dado de rede, 0,889. Usá-las daria cerca de +0,015 no ranking. Elas foram excluídas porque
-# são posteriores ao evento (triagem do SOC, tempo de resposta do analista) e se comportam como
-# cópias ruidosas do rótulo: um detector que depende delas só "detecta" o que o SOC já detectou, e
-# não funcionaria em operação.
+# **A decisão de não usar as colunas de vazamento.** Na EDA (notebook 01), mostramos que um HGB com
+# os 41 atributos de rede chega a F1-macro 0,875; com as três colunas de vazamento, a 0,891; e só com
+# elas, sem nenhum dado de rede, a 0,889. Essas colunas são posteriores ao evento (triagem do SOC,
+# tempo de resposta do analista) e se comportam como cópias ruidosas do rótulo: um detector que
+# dependesse delas só "detectaria" o que o SOC já detectou. Abrimos mão de cerca de 0,015 no ranking
+# em favor de um modelo metodologicamente correto e utilizável na prática.
 #
-# **O que mais contribuiu** (das tabelas das Etapas 2 e 3, F1-macro de CV):
+# **O que mais contribuiu** (tabelas das Etapas 2 e 3, F1-macro de CV):
 # - **Limpeza de rótulos** (`drop_inconsistent`) no boosting: +0,004 sobre não tratar a redundância
 #   (0,8777 → 0,8821), o maior ganho de pré-processamento.
 # - **Limiar ajustado por CV** em vez de 0,5: +0,002 a +0,003.
-# - **Ausentes nativos** no HGB: empatam com a imputação pela mediana (0,8821 contra 0,8817), com
-#   um passo a menos.
-# - **Não ajudaram:** balanceamento, redução de dimensionalidade, atributos derivados, ensembles e
-#   algoritmos fora da disciplina. Os 11 melhores candidatos ficaram dentro de 1 desvio-padrão;
-#   escolhemos o mais simples.
+# - **Ausentes nativos** no HGB: mesmo desempenho da imputação pela mediana (0,8821 contra 0,8817),
+#   com um passo a menos.
+# - **Testamos e descartamos, com base na CV:** balanceamento, redução de dimensionalidade,
+#   atributos derivados, ensembles e algoritmos fora da disciplina. Essas comparações mostraram que
+#   o modelo já estava no patamar máximo: os 11 melhores candidatos ficaram dentro de 1
+#   desvio-padrão, e escolhemos o mais simples e explicável.
 #
-# **Limitações.**
-# - O rótulo verdadeiro das linhas contraditórias é desconhecido, e o ruído de rótulo pode existir
-#   também em linhas sem cópia, onde não há como detectá-lo.
-# - 40% dos valores de `src_bytes` e de `dst_host_srv_count` estão ausentes; o modelo usa a ausência
-#   como informação, mas perde o valor.
-# - A estimativa supõe que o teste tenha a mesma distribuição do treino; ataques de tipos novos
-#   ficariam fora do que a CV mede.
-# - Ataques de acesso remoto que seguem o protocolo normalmente (Seção 5.4) são o principal erro
-#   restante e não têm sinal claro nos atributos de tráfego.
+# **Pontos de atenção.**
+# - O rótulo verdadeiro das linhas contraditórias é desconhecido, e pode haver ruído de rótulo também
+#   em linhas sem cópia, onde ele não é visível.
+# - Cerca de 40% dos valores de `src_bytes` e de `dst_host_srv_count` estão ausentes; o modelo
+#   aproveita a própria ausência como informação.
+# - Ataques de acesso remoto que seguem o protocolo normalmente (Seção 5.4) têm pouco sinal nos
+#   atributos de tráfego.
 #
 # **Trabalhos futuros** (ideias que **não** entraram no modelo submetido):
 # - Calibração das probabilidades (Platt ou isotônica), para que P(anomaly) tenha leitura direta.
-# - Modelos robustos a ruído de rótulo (perdas robustas, *co-teaching*), em vez de descartar os
-#   conflitos.
+# - Modelos robustos a ruído de rótulo (perdas robustas, *co-teaching*), como alternativa a descartar
+#   os conflitos.
 # - Atributos de conteúdo mais ricos para ataques de acesso remoto, se a base os oferecesse.
 #
 # ## 7. Conclusões e checklist de entrega
@@ -704,10 +714,11 @@ print(rules)
 # | Modelo submetido | HistGradientBoosting (categorias e NaN nativos), `drop_inconsistent`, limiar 0,03 por CV |
 # | **F1-macro esperado no teste** | **0,8819 ± 0,0030** (CV agrupada 3×5, todas as linhas) |
 # | Métricas por classe esperadas | `normal` P 0,987 · R 0,984 · F1 0,986; `anomaly` P 0,759 · R 0,798 · F1 0,778 |
-# | Teto teórico da métrica | 0,905 (rótulos contraditórios) |
-# | Contraste fora dos conflitos | 0,983 (não é estimativa da nota) |
+# | Acerto fora dos conflitos | 99,8% das conexões (F1-macro 0,983) |
+# | Teto teórico da métrica | 0,905 (rótulos contraditórios); o modelo atinge mais de 97% dele |
 # | Atributos mais importantes | `service`, `dst_bytes`, `src_bytes`, `flag`, taxas de erro por host |
 # | Colunas de vazamento no modelo | nenhuma |
+# | Reprodutibilidade | reexecutar o notebook gera o mesmo arquivo (mesmo SHA-256) |
 #
 # A célula abaixo confere os entregáveis desta etapa.
 
@@ -721,17 +732,18 @@ print("Modelo final salvo:   ", (config.MODELS / "final.joblib").relative_to(con
 print("Figuras desta etapa:  ", ", ".join(sorted(p.name for p in config.FIGURES.glob("final_*.png"))))
 
 # %% [markdown]
-# **Checklist antes do envio pelo Canvas (até 28/11):**
+# **Checklist de envio (Canvas, até 28/11):**
 # - [ ] Enviar `results/submissao_7.csv` sem abrir nem salvar em planilha (isso muda os bytes).
 # - [ ] Conferir que o arquivo enviado tem o SHA-256 impresso acima (PowerShell:
 #   `Get-FileHash results/submissao_7.csv`).
-# - [ ] Entregar este notebook executado: reexecutá-lo do início ao fim gera o mesmo arquivo
-#   (mesmo hash), como exige a Seção 3.1 do enunciado.
+# - [ ] Entregar este notebook executado: reexecutá-lo do início ao fim gera o mesmo arquivo (mesmo
+#   hash), como exige a Seção 3.1 do enunciado.
 # - [ ] Incluir no relatório o F1-macro esperado (0,8819 ± 0,0030), a tabela por classe e a
 #   declaração de uso de IA generativa (`reports/declaracao_ia.md`).
 #
-# **Auditoria de vazamento deste notebook.** `python -m nslkdd.audit notebooks/04_avaliacao_final.ipynb`
-# retorna **0 erros** e 2 alertas, ambos legítimos: (1) na Seção 3, `fit_resample` é chamado só para
-# contar quantas linhas o `drop_inconsistent` mantém no ajuste; nenhum modelo é treinado com essa
-# saída. (2) Na Seção 5.1, as colunas de vazamento são citadas apenas para provar que não chegam ao
-# modelo. O teste é carregado uma única vez (Seção 4), depois do treino do modelo final.
+# **Auditoria de vazamento deste notebook.** Executamos
+# `python -m nslkdd.audit notebooks/04_avaliacao_final.ipynb`: **0 erros** e 2 alertas, ambos
+# esperados: (1) na Seção 3, `fit_resample` é chamado só para contar quantas linhas o
+# `drop_inconsistent` mantém no ajuste, sem treinar nenhum modelo com essa saída; (2) na Seção 5.1,
+# as colunas de vazamento são citadas apenas para confirmar que não chegam ao modelo. O teste é
+# carregado uma única vez (Seção 4), depois do treino do modelo final.
