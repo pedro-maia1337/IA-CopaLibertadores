@@ -227,10 +227,28 @@ def test_explanations_work_with_samplers_and_missing(sample):
     assert explain.model_importances(pipe, X).index[0] in set(explain.transformed(pipe, X).columns)
     rules, fidelity = explain.surrogate_rules(pipe, X.iloc[:500], max_depth=3)
     assert "class:" in rules and 0 <= fidelity <= 1
-    values, Xt = explain.shap_values(pipe, X, sample=50)
+    values, Xt = explain.shap_values(pipe, X, sample=50, background=20)
     assert values.values.shape[:2] == Xt.shape
+    f = explain.anomaly_log_odds(pipe[-1], list(Xt.columns))
+    assert np.allclose(values.values.sum(axis=1) + values.base_values, f(Xt.to_numpy()), atol=1e-6)
     wrapped = ThresholdClassifier(pipe, n_splits=3, n_jobs=1).fit(X, y)
     assert explain.transformed(wrapped, X.iloc[:5]).shape[0] == 5
+
+
+def test_shap_is_additive_for_native_categorical_hgb(sample):
+    """O HGB com categorias nativas (modelo final) precisa de SHAP exato: soma = log-odds."""
+    from nslkdd import explain
+    X, y, _ = sample
+    model = HistGradientBoostingClassifier(max_iter=30, categorical_features=config.CATEGORICAL,
+                                           random_state=0)
+    pipe = build_pipeline(model, redundancy="drop_inconsistent", imputation="none",
+                          scaling="none", log_transform=False, service_encoding="ordinal",
+                          categorical_encoding="ordinal").fit(X, y)
+    values, Xt = explain.shap_values(pipe, X, sample=30, background=20)
+    proba = pipe.predict_proba(X.loc[Xt.index])[:, list(pipe.classes_).index(config.POSITIVE)]
+    log_odds = values.values.sum(axis=1) + values.base_values
+    assert np.allclose(1 / (1 + np.exp(-log_odds)), proba, atol=1e-6)
+    assert not set(config.LEAKY_COLUMNS) & set(Xt.columns)
 
 
 def test_scanner_flags_bad_patterns(tmp_path):

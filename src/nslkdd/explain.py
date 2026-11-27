@@ -42,23 +42,58 @@ def permutation_importances(pipe, X, y, n_repeats=5, scoring="f1_macro", sample=
                         index=X.columns).sort_values("media", ascending=False)
 
 
-def shap_values(pipe, X, sample=2000):
-    """Valores SHAP (TreeExplainer) do estimador final no espaço transformado."""
+def anomaly_log_odds(final, columns):
+    """Função A -> log-odds de 'anomaly' do estimador final, no espaço transformado."""
+    def f(A):
+        Xa = pd.DataFrame(A, columns=columns)
+        if hasattr(final, "decision_function") and len(final.classes_) == 2:
+            d = final.decision_function(Xa)  # log-odds da classe classes_[1]
+            return d if final.classes_[1] == config.POSITIVE else -d
+        p = final.predict_proba(Xa)[:, list(final.classes_).index(config.POSITIVE)]
+        p = np.clip(p, 1e-12, 1 - 1e-12)
+        return np.log(p / (1 - p))
+    return f
+
+
+def shap_values(pipe, X, sample=1000, background=100):
+    """Valores SHAP do estimador final, em log-odds de 'anomaly', no espaço transformado.
+
+    Usa o explicador por permutação, que só chama o modelo: é exato (aditivo) para qualquer
+    estimador. O TreeExplainer não serve aqui, porque não reproduz as divisões categóricas
+    nativas do HistGradientBoosting (a soma dos valores não bate com a saída do modelo).
+    O fundo (`background`) e as linhas explicadas são amostras de X.
+    """
     import shap
 
     Xs = X.sample(min(sample, len(X)), random_state=config.RANDOM_STATE)
-    Xt = transformed(pipe, Xs)
-    final = unwrap(pipe)[-1]
-    explainer = shap.TreeExplainer(getattr(final, "estimator_", final))  # EncodedLabelClassifier
-    return explainer(Xt), Xt
+    Xb = X.sample(min(background, len(X)), random_state=config.RANDOM_STATE + 1)
+    Xt, Xbt = transformed(pipe, Xs), transformed(pipe, Xb)
+    f = anomaly_log_odds(unwrap(pipe)[-1], list(Xt.columns))
+    explainer = shap.Explainer(f, shap.maskers.Independent(Xbt, max_samples=len(Xbt)),
+                               algorithm="permutation", seed=config.RANDOM_STATE)
+    return explainer(Xt, max_evals=2 * Xt.shape[1] + 1, silent=True), Xt
 
 
-def surrogate_rules(pipe, X, max_depth=4):
+def readable_frame(pipe, X):
+    """Atributos originais (após a limpeza de domínio do pipeline) com categóricos em one-hot.
+
+    Serve só para a árvore substituta: regras como `flag_SF <= 0.5` são legíveis, ao contrário
+    de cortes sobre códigos ordinais. Não entra no modelo.
+    """
+    inner = unwrap(pipe)
+    if "domain" in inner.named_steps:
+        X = inner.named_steps["domain"].transform(X)
+    return pd.get_dummies(X, columns=config.CATEGORICAL, dtype=float)
+
+
+def surrogate_rules(pipe, X, max_depth=4, readable=True):
     """Árvore rasa que imita as previsões do modelo: regras legíveis + fidelidade.
 
-    A árvore do scikit-learn aceita NaN, então funciona também com imputação 'none'.
+    readable=True: a árvore usa os atributos originais com categóricos em one-hot
+    (`readable_frame`); False: o espaço transformado do pipeline. A árvore do scikit-learn
+    aceita NaN, então funciona também com imputação 'none'.
     """
-    Xt = transformed(pipe, X)
+    Xt = readable_frame(pipe, X) if readable else transformed(pipe, X)
     y_model = pipe.predict(X)
     tree = DecisionTreeClassifier(max_depth=max_depth, random_state=config.RANDOM_STATE)
     tree.fit(Xt, y_model)
